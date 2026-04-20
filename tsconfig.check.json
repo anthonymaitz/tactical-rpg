@@ -10,7 +10,9 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "paths": {
-      "shared-types": ["./packages/shared-types/src/index.ts"]
+      "shared-types": ["./packages/shared-types/src/index.ts"],
+      "rules-engine": ["./packages/rules-engine/src/index.ts"],
+      "click-comics": ["./packages/click-comics/src/index.ts"]
     }
   },
   "include": [
