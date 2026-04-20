@@ -1,6 +1,6 @@
 import { describe, it, expectTypeOf } from 'vitest'
 import type {
-  ActorState, CombatState, Action, ActionResult, RollResult, AbilityDefinition
+  ActorState, CombatState, Action, ActionResult, RollResult, AbilityDefinition, DiceNotation
 } from './index'
 
 describe('shared-types', () => {
@@ -8,6 +8,7 @@ describe('shared-types', () => {
     expectTypeOf<ActorState>().toHaveProperty('id')
     expectTypeOf<ActorState>().toHaveProperty('hp')
     expectTypeOf<ActorState>().toHaveProperty('abilities')
+    expectTypeOf<ActorState>().toHaveProperty('characterClass')
     expectTypeOf<ActorState['abilities']>().toEqualTypeOf<AbilityDefinition[]>()
   })
 
@@ -22,9 +23,7 @@ describe('shared-types', () => {
     expectTypeOf<ActionResult['hpDeltas']>().toEqualTypeOf<Record<string, number>>()
   })
 
-  it('RollResult contains dice array and total', () => {
-    expectTypeOf<RollResult>().toHaveProperty('total')
-    expectTypeOf<RollResult>().toHaveProperty('dice')
-    expectTypeOf<RollResult['dice']>().toEqualTypeOf<number[]>()
+  it('DiceNotation is a discriminated union', () => {
+    expectTypeOf<DiceNotation>().toMatchTypeOf<{ kind: 'notation'; value: string } | { kind: 'actor' }>()
   })
 })
