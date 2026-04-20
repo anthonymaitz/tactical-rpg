@@ -1,9 +1,7 @@
 import type { AbilityDefinition, DiceNotation, AbilityContext, AbilityEffect, TargetType } from './ability-types'
+import type { Die, Personality } from './hero-persistence'
 
 export type { AbilityDefinition, DiceNotation, AbilityContext, AbilityEffect, TargetType } from './ability-types'
-
-export type Personality = 'passionate' | 'calculating' | 'wild' | 'selfish' | 'righteous'
-export type Die = 'd4' | 'd6' | 'd8' | 'd10' | 'd12' | 'd20'
 
 export interface Position {
   x: number
