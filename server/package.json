@@ -7,13 +7,14 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "shared-types": "workspace:*",
-    "rules-engine": "workspace:*",
-    "@colyseus/core": "^0.15.0",
     "@colyseus/bun-websockets": "^0.15.0",
+    "@colyseus/core": "^0.15.0",
     "@colyseus/schema": "^2.0.0",
+    "@supabase/supabase-js": "^2.104.0",
     "hono": "^4.0.0",
-    "jose": "^5.0.0"
+    "jose": "^5.0.0",
+    "rules-engine": "workspace:*",
+    "shared-types": "workspace:*"
   },
   "devDependencies": {
     "bun-types": "latest",
