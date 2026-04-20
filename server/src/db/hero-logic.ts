@@ -1,4 +1,5 @@
 import type { HeroRecord } from 'shared-types'
+export { isRecovering } from 'shared-types'
 
 export function xpToNextLevel(level: number): number {
   return level * 200
@@ -28,7 +29,3 @@ export function getRecoveryEndsAt(level: number): string {
   return new Date(Date.now() + recoveryDurationMs(level)).toISOString()
 }
 
-export function isRecovering(hero: HeroRecord): boolean {
-  if (!hero.recoveryEndsAt) return false
-  return new Date(hero.recoveryEndsAt) > new Date()
-}
