@@ -96,4 +96,40 @@ describe('decideNPCAction', () => {
     expect(action.type === 'ability' && action.ability.effect).toBe('heal')
     expect(action.type === 'ability' && action.targetIds).not.toContain('n1')
   })
+
+  it('selfish NPC above 50% HP attacks rather than heals', () => {
+    const npc = makeActor('n1', {
+      personality: 'selfish',
+      hp: 15, maxHp: 20, // 75% — above 50%
+      abilities: [healAbility, strikeAbility],
+    })
+    const player = makeActor('p1', { isNPC: false, position: { x: 2, y: 0 } })
+    const state = makeState({ n1: npc, p1: player })
+    const action = decideNPCAction('n1', state)
+    expect(action.type).toBe('ability')
+    expect(action.type === 'ability' && action.ability.effect).toBe('damage')
+  })
+
+  it('calculating NPC moves toward enemy when no ability available', () => {
+    const npc = makeActor('n1', { personality: 'calculating', position: { x: 0, y: 0 }, speed: 2 })
+    const player = makeActor('p1', { isNPC: false, position: { x: 10, y: 0 } })
+    const state = makeState({ n1: npc, p1: player })
+    const action = decideNPCAction('n1', state)
+    expect(action.type).toBe('move')
+    expect(action.type === 'move' && action.destination.x).toBeGreaterThan(0)
+  })
+
+  it('righteous NPC with only self-heal skips ally-heal and attacks', () => {
+    const npc = makeActor('n1', {
+      personality: 'righteous',
+      abilities: [healAbility, strikeAbility], // healAbility targets 'self'
+    })
+    const ally = makeActor('n2', { isNPC: true, position: { x: 1, y: 0 } })
+    const player = makeActor('p1', { isNPC: false, position: { x: 3, y: 0 } })
+    const state = makeState({ n1: npc, n2: ally, p1: player })
+    const action = decideNPCAction('n1', state)
+    // self-heal should NOT be treated as ally-heal — should attack instead
+    expect(action.type).toBe('ability')
+    expect(action.type === 'ability' && action.ability.effect).toBe('damage')
+  })
 })

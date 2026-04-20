@@ -13,6 +13,10 @@ export function decideNPCAction(npcId: string, state: CombatState): Action {
 
   switch (npc.personality) {
     case 'passionate':
+      if (abilities.length > 0) return abilities[0]
+      if (moves.length > 0) return closestMoveToEnemy(npcId, moves, state)
+      break
+
     case 'calculating':
       if (abilities.length > 0) return abilities[0]
       if (moves.length > 0) return closestMoveToEnemy(npcId, moves, state)
@@ -26,7 +30,8 @@ export function decideNPCAction(npcId: string, state: CombatState): Action {
         a => a.type === 'ability' && a.ability.effect === 'heal' && a.targetIds.includes(npcId),
       )
       if (selfHeal && npc.hp < npc.maxHp * 0.5) return selfHeal
-      if (abilities.length > 0) return abilities[0]
+      const attack = abilities.find(a => a.type === 'ability' && a.ability.effect === 'damage')
+      if (attack) return attack
       if (moves.length > 0) return farthestMoveFromEnemy(npcId, moves, state)
       break
     }
@@ -36,6 +41,8 @@ export function decideNPCAction(npcId: string, state: CombatState): Action {
         a => a.type === 'ability' && a.ability.effect === 'heal' && !a.targetIds.includes(npcId),
       )
       if (allyHeal) return allyHeal
+      const damageAbility = abilities.find(a => a.type === 'ability' && a.ability.effect === 'damage')
+      if (damageAbility) return damageAbility
       if (abilities.length > 0) return abilities[0]
       if (moves.length > 0) return closestMoveToEnemy(npcId, moves, state)
       break
@@ -46,6 +53,7 @@ export function decideNPCAction(npcId: string, state: CombatState): Action {
 }
 
 function closestMoveToEnemy(npcId: string, moves: Action[], state: CombatState): Action {
+  if (moves.length === 0) return { type: 'skip', actorId: npcId }
   const npc = state.actors[npcId]
   const enemies = Object.values(state.actors).filter(a => a.isNPC !== npc.isNPC && a.hp > 0)
   if (enemies.length === 0) return moves[0]
@@ -59,6 +67,7 @@ function closestMoveToEnemy(npcId: string, moves: Action[], state: CombatState):
 }
 
 function farthestMoveFromEnemy(npcId: string, moves: Action[], state: CombatState): Action {
+  if (moves.length === 0) return { type: 'skip', actorId: npcId }
   const npc = state.actors[npcId]
   const enemies = Object.values(state.actors).filter(a => a.isNPC !== npc.isNPC && a.hp > 0)
   if (enemies.length === 0) return moves[0]
