@@ -50,5 +50,9 @@ function getValidTargets(
       return alive.filter(a => a.id === actorId).map(a => a.id)
     case 'area':
       return alive.filter(a => a.isNPC !== actor.isNPC).map(a => a.id)
+    default: {
+      const _exhaustive: never = ability.targetType
+      return []
+    }
   }
 }

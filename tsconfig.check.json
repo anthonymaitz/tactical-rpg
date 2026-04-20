@@ -1,0 +1,23 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "lib": ["ES2022", "DOM"],
+    "jsx": "react-jsx",
+    "paths": {
+      "shared-types": ["./packages/shared-types/src/index.ts"]
+    }
+  },
+  "include": [
+    "packages/shared-types/src/**/*",
+    "packages/rules-engine/src/**/*",
+    "packages/click-comics/src/**/*",
+    "packages/simplequest-hud/src/**/*",
+    "packages/playsets/src/**/*",
+    "apps/game/src/**/*",
+    "server/src/**/*"
+  ]
+}

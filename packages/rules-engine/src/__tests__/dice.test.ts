@@ -15,7 +15,7 @@ describe('rollDice', () => {
   it('rolls multiple dice and sums them', () => {
     const result = rollDice('3d6')
     expect(result.dice).toHaveLength(3)
-    expect(result.total).toBe(result.dice.reduce((a, b) => a + b, 0))
+    expect(result.total).toBe(result.dice.reduce((a: number, b: number) => a + b, 0))
   })
 
   it('applies positive modifier', () => {
@@ -32,7 +32,7 @@ describe('rollDice', () => {
 
   it('each die roll is within valid range', () => {
     const result = rollDice('10d20')
-    result.dice.forEach(d => {
+    result.dice.forEach((d: number) => {
       expect(d).toBeGreaterThanOrEqual(1)
       expect(d).toBeLessThanOrEqual(20)
     })
