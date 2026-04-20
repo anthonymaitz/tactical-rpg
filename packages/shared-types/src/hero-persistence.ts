@@ -1,4 +1,4 @@
-import type { AbilityDefinition } from './index'
+import type { AbilityDefinition } from './ability-types'
 
 export type Die = 'd4' | 'd6' | 'd8' | 'd10' | 'd12' | 'd20'
 export type Personality = 'passionate' | 'calculating' | 'wild' | 'selfish' | 'righteous'

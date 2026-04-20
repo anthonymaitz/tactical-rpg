@@ -1,28 +1,13 @@
+import type { AbilityDefinition, DiceNotation, AbilityContext, AbilityEffect, TargetType } from './ability-types'
+
+export type { AbilityDefinition, DiceNotation, AbilityContext, AbilityEffect, TargetType } from './ability-types'
+
 export type Personality = 'passionate' | 'calculating' | 'wild' | 'selfish' | 'righteous'
 export type Die = 'd4' | 'd6' | 'd8' | 'd10' | 'd12' | 'd20'
-export type AbilityContext = 'inGeneral' | 'inCombat' | 'outOfCombat'
-export type AbilityEffect = 'damage' | 'heal' | 'buff' | 'debuff'
-export type TargetType = 'enemy' | 'ally' | 'self' | 'area'
 
 export interface Position {
   x: number
   y: number
-}
-
-export type DiceNotation =
-  | { kind: 'notation'; value: string }
-  | { kind: 'actor' }
-
-export interface AbilityDefinition {
-  id: string
-  name: string
-  energyCost: number
-  /** Dice notation e.g. { kind: 'notation', value: '1d8' } or { kind: 'actor' } to roll the actor's own die. */
-  diceNotation: DiceNotation
-  targetType: TargetType
-  effect: AbilityEffect
-  statusEffect?: string[]
-  context: AbilityContext
 }
 
 export interface ActorState {
