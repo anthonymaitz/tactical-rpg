@@ -42,5 +42,7 @@ describe('rollDice', () => {
     expect(() => rollDice('invalid')).toThrow('Invalid dice notation')
     expect(() => rollDice('d6')).toThrow('Invalid dice notation')
     expect(() => rollDice('')).toThrow('Invalid dice notation')
+    expect(() => rollDice('0d6')).toThrow('Invalid dice notation')
+    expect(() => rollDice('1d0')).toThrow('Invalid dice notation')
   })
 })

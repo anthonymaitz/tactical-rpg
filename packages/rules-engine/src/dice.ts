@@ -8,6 +8,9 @@ export function rollDice(notation: string): RollResult {
   const sides = parseInt(match[2], 10)
   const modifier = match[3] ? parseInt(match[3], 10) : 0
 
+  if (count < 1) throw new Error(`Invalid dice notation: "${notation}"`)
+  if (sides < 1) throw new Error(`Invalid dice notation: "${notation}"`)
+
   const dice = Array.from({ length: count }, () =>
     Math.floor(Math.random() * sides) + 1
   )
