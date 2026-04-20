@@ -176,6 +176,49 @@ There is no penalty for extracting. There is no mandatory objective. Players pus
 
 ---
 
+## Player-Created Shops (UGC — Round 1)
+
+Players build shops using the Playsets builder tool and publish them into the shared world. Other players discover them during exploration runs.
+
+### Creation
+
+**Builder elements** are drops found while exploring biome maps (chests, boss kills, shrines). Elements range in quality tier — common elements enable basic shops; rare elements unlock better inventory budgets and visual variety.
+
+Players open the Playsets builder from The Inn and assemble a shop: lay out the space, place a shopkeeper (pre-written dialogue, no player-authored text), and stock the inventory within their current **budget tier**.
+
+**Budget tiers** unlock as the player's reputation score grows:
+
+| Tier | Budget | Inventory quality | Placement zone |
+| ---- | ------ | ----------------- | -------------- |
+| 1 | Small | Common gear only | Near spawn |
+| 2 | Medium | Uncommon gear | Mid-distance |
+| 3 | Large | Rare gear | Far from spawn |
+| 4+ | Premium | Exotic gear | Deepest zones |
+
+### Publication & Placement
+
+Published shops are distributed by the server into biome maps at the appropriate distance band for their tier. A player will never see their own shop in their own run. Shops appear as discoverable structures on the map — identical in appearance to the shop event type.
+
+### Rewards
+
+| Event | Reward |
+| ----- | ------ |
+| Shop published | XP bonus (one-time per shop) |
+| Another player visits the shop | Small gold payout to creator |
+| Player explicitly likes the shop | Bonus reputation multiplier added to creator score |
+
+**Reputation score** is cumulative across all published shops. It gates budget tier unlocks and determines placement priority (higher reputation = shops placed in better traffic zones).
+
+### Moderation
+
+Players can flag any shop they visit. A threshold of flags auto-removes the shop from circulation and docks the creator's reputation score. No admin review in round 1.
+
+### Shopkeeper Dialogue
+
+Shopkeepers use pre-written dialogue selected from a pool at publish time (e.g. "Welcome, traveler" variants by biome theme). No player-authored text in round 1.
+
+---
+
 ## Technical Integration Notes
 
 - **ExploreRoom** handles both The Inn and biome maps. The Inn is a curated hand-authored map; biome maps are procedurally generated. Room state distinguishes map type.
