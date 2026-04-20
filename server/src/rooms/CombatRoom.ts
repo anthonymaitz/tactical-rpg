@@ -24,8 +24,7 @@ export class CombatRoom extends TurnRoom {
     this.scheduleTurnTimer()
   }
 
-  onLeave(client: Client): void {
-    super.onLeave(client)
+  onLeave(_client: Client): void {
     this.clearTurnTimer()
   }
 
