@@ -52,6 +52,14 @@ describe('applyLevelUp', () => {
     expect(result.newXp).toBe(50)
     expect(result.newMaxHp).toBe(24)
   })
+
+  it('cascades through multiple level thresholds', () => {
+    const hero = { ...baseHero, xp: 700 } // level 1: 200, level 2: 400 → total 600 to reach level 3
+    const result = applyLevelUp(hero)
+    expect(result.newLevel).toBe(3)
+    expect(result.newXp).toBe(100)
+    expect(result.newMaxHp).toBe(28) // 20 + 4 + 4
+  })
 })
 
 describe('recoveryDurationMs', () => {

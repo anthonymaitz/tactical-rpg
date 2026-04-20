@@ -10,15 +10,17 @@ export function applyLevelUp(hero: HeroRecord): {
   newMaxHp: number
   newXp: number
 } {
-  const threshold = xpToNextLevel(hero.level)
-  if (hero.xp < threshold) {
-    return { newLevel: hero.level, newMaxHp: hero.maxHp, newXp: hero.xp }
+  let level = hero.level
+  let maxHp = hero.maxHp
+  let xp = hero.xp
+
+  while (xp >= xpToNextLevel(level)) {
+    xp -= xpToNextLevel(level)
+    level++
+    maxHp += 4
   }
-  return {
-    newLevel: hero.level + 1,
-    newMaxHp: hero.maxHp + 4,
-    newXp: hero.xp - threshold,
-  }
+
+  return { newLevel: level, newMaxHp: maxHp, newXp: xp }
 }
 
 export function recoveryDurationMs(level: number): number {
