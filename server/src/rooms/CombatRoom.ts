@@ -1,7 +1,6 @@
 import type { Client } from '@colyseus/core'
 import { TurnRoom } from './TurnRoom'
 import { buildCombatOverPayload } from './logic/combat-logic'
-import { advanceTurn } from './logic/turn-logic'
 import type { Action } from 'shared-types'
 
 const TURN_TIMEOUT_MS = 30_000
@@ -23,6 +22,11 @@ export class CombatRoom extends TurnRoom {
   onJoin(client: Client, options: unknown, auth?: { userId: string }): void {
     super.onJoin(client, options, auth)
     this.scheduleTurnTimer()
+  }
+
+  onLeave(client: Client): void {
+    super.onLeave(client)
+    this.clearTurnTimer()
   }
 
   protected override handlePlayerAction(client: Client, action: Action): void {
