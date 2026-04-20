@@ -158,3 +158,8 @@ export const PERSONALITIES: Personality[] = [
   'selfish',
   'righteous',
 ]
+
+export function isRecovering(hero: HeroRecord): boolean {
+  if (!hero.recoveryEndsAt) return false
+  return new Date(hero.recoveryEndsAt) > new Date()
+}

@@ -18,12 +18,13 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     })
   }
 
-  onJoin(client: Client, _options: unknown, auth?: { userId: string }): void {
+  onJoin(client: Client, options: { token?: string; heroIds?: string[] }, auth?: { userId: string }): void {
     const pos = new PlayerPosition()
     pos.x = 0
     pos.y = 0
     pos.characterId = auth?.userId ?? client.sessionId
     this.state.players.set(client.sessionId, pos)
+    client.userData = { ...(client.userData ?? {}), heroIds: options.heroIds ?? [] }
   }
 
   onLeave(client: Client): void {

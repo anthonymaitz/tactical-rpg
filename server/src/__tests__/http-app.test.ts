@@ -1,4 +1,11 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+
+vi.mock('../db/supabase', () => ({
+  supabase: {
+    from: vi.fn(() => ({ select: vi.fn(), insert: vi.fn(), update: vi.fn(), delete: vi.fn() })),
+  },
+}))
+
 import { createHttpApp } from '../http-app'
 
 describe('HTTP app', () => {
