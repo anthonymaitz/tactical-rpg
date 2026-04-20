@@ -104,7 +104,7 @@ export class ClickComic {
     this.container.appendChild(el)
   }
 
-  protected emit(event: string, ...args: unknown[]): void {
+  private emit(event: string, ...args: unknown[]): void {
     for (const handler of this.listeners.get(event) ?? []) {
       handler(...args)
     }
