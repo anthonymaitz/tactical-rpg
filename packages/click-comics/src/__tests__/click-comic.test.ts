@@ -112,3 +112,44 @@ describe('panel rendering', () => {
     cleanup(container)
   })
 })
+
+describe('auto-advance (duration)', () => {
+  it('auto-advances to the next panel after the specified duration', async () => {
+    const container = makeContainer()
+    const panels: Panel[] = [{ text: 'Auto', duration: 50 }, { text: 'Next' }]
+    const comic = new ClickComic(container, panels)
+    comic.play()
+    expect(container.textContent).toContain('Auto')
+    await new Promise(r => setTimeout(r, 100))
+    expect(container.textContent).toContain('Next')
+    cleanup(container)
+  })
+
+  it('does not auto-advance when duration is absent', async () => {
+    const container = makeContainer()
+    const panels: Panel[] = [{ text: 'Manual' }, { text: 'Next' }]
+    const comic = new ClickComic(container, panels)
+    comic.play()
+    await new Promise(r => setTimeout(r, 100))
+    expect(container.textContent).toContain('Manual')
+    expect(container.textContent).not.toContain('Next')
+    cleanup(container)
+  })
+
+  it('cancels the timer if advance() is called before it fires', async () => {
+    const container = makeContainer()
+    const panels: Panel[] = [{ text: 'Slow', duration: 200 }, { text: 'Next' }]
+    const comic = new ClickComic(container, panels)
+    const completeSpy = vi.fn()
+    comic.play()
+    // Manually advance before the 200ms timer fires
+    comic.advance()
+    expect(container.textContent).toContain('Next')
+    // Wait past the timer — complete should NOT fire twice
+    comic.on('complete', completeSpy)
+    comic.advance() // advance off the last panel
+    await new Promise(r => setTimeout(r, 300))
+    expect(completeSpy).toHaveBeenCalledOnce()
+    cleanup(container)
+  })
+})

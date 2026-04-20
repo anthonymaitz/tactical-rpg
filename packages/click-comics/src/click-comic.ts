@@ -43,7 +43,15 @@ export class ClickComic {
       this.emit('complete')
       return
     }
-    this.render(this.panels[this.currentIndex])
+    const panel = this.panels[this.currentIndex]
+    this.render(panel)
+
+    if (!panel.choices?.length && panel.duration !== undefined) {
+      this.timer = setTimeout(() => {
+        this.timer = null
+        this.advance()
+      }, panel.duration)
+    }
   }
 
   private render(panel: Panel): void {
