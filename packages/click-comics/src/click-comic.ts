@@ -78,7 +78,21 @@ export class ClickComic {
     textEl.textContent = panel.text
     el.appendChild(textEl)
 
-    if (!panel.choices?.length) {
+    if (panel.choices?.length) {
+      const choicesEl = document.createElement('div')
+      choicesEl.className = 'click-comic-choices'
+      for (const choice of panel.choices) {
+        const btn = document.createElement('button')
+        btn.className = 'click-comic-choice'
+        btn.textContent = choice.label
+        btn.addEventListener('click', () => {
+          choice.onSelect()
+          this.advance()
+        })
+        choicesEl.appendChild(btn)
+      }
+      el.appendChild(choicesEl)
+    } else {
       el.addEventListener('click', () => this.advance())
     }
 

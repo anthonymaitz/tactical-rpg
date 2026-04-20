@@ -153,3 +153,81 @@ describe('auto-advance (duration)', () => {
     cleanup(container)
   })
 })
+
+describe('choice panels', () => {
+  it('renders choice buttons when panel has choices', () => {
+    const container = makeContainer()
+    const panels: Panel[] = [{
+      text: 'What do you do?',
+      choices: [
+        { label: 'Attack', onSelect: () => {} },
+        { label: 'Flee',   onSelect: () => {} },
+      ],
+    }]
+    const comic = new ClickComic(container, panels)
+    comic.play()
+    const buttons = container.querySelectorAll('.click-comic-choice')
+    expect(buttons).toHaveLength(2)
+    expect(buttons[0].textContent).toBe('Attack')
+    expect(buttons[1].textContent).toBe('Flee')
+    cleanup(container)
+  })
+
+  it('calls onSelect callback when a choice button is clicked', () => {
+    const container = makeContainer()
+    const attackSpy = vi.fn()
+    const panels: Panel[] = [{
+      text: 'Choose',
+      choices: [{ label: 'Attack', onSelect: attackSpy }],
+    }]
+    const comic = new ClickComic(container, panels)
+    comic.play()
+    const btn = container.querySelector('.click-comic-choice') as HTMLButtonElement
+    btn.click()
+    expect(attackSpy).toHaveBeenCalledOnce()
+    cleanup(container)
+  })
+
+  it('advances to the next panel after a choice is selected', () => {
+    const container = makeContainer()
+    const panels: Panel[] = [
+      { text: 'Choose', choices: [{ label: 'Go', onSelect: () => {} }] },
+      { text: 'Outcome' },
+    ]
+    const comic = new ClickComic(container, panels)
+    comic.play()
+    ;(container.querySelector('.click-comic-choice') as HTMLButtonElement).click()
+    expect(container.textContent).toContain('Outcome')
+    cleanup(container)
+  })
+
+  it('does not advance on panel click for choice panels', () => {
+    const container = makeContainer()
+    const panels: Panel[] = [
+      { text: 'Choose', choices: [{ label: 'Go', onSelect: () => {} }] },
+      { text: 'Outcome' },
+    ]
+    const comic = new ClickComic(container, panels)
+    comic.play()
+    container.querySelector('.click-comic-panel')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(container.textContent).not.toContain('Outcome')
+    cleanup(container)
+  })
+
+  it('does not auto-advance choice panels even when duration is set', async () => {
+    const container = makeContainer()
+    const panels: Panel[] = [
+      {
+        text: 'Choose',
+        duration: 50,
+        choices: [{ label: 'Go', onSelect: () => {} }],
+      },
+      { text: 'Outcome' },
+    ]
+    const comic = new ClickComic(container, panels)
+    comic.play()
+    await new Promise(r => setTimeout(r, 100))
+    expect(container.textContent).not.toContain('Outcome')
+    cleanup(container)
+  })
+})
