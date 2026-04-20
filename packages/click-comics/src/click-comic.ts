@@ -26,12 +26,55 @@ export class ClickComic {
     return this
   }
 
+  advance(): void {
+    if (this.timer !== null) {
+      clearTimeout(this.timer)
+      this.timer = null
+    }
+    const left = this.currentIndex
+    this.currentIndex++
+    this.emit('advance', left)
+    this.renderCurrent()
+  }
+
   private renderCurrent(): void {
     if (this.currentIndex >= this.panels.length) {
+      this.container.innerHTML = ''
       this.emit('complete')
       return
     }
-    // Rendering implemented in Task 3
+    this.render(this.panels[this.currentIndex])
+  }
+
+  private render(panel: Panel): void {
+    this.container.innerHTML = ''
+    const el = document.createElement('div')
+    el.className = 'click-comic-panel'
+
+    if (panel.speaker) {
+      const speakerEl = document.createElement('div')
+      speakerEl.className = 'click-comic-speaker'
+      speakerEl.textContent = panel.speaker
+      el.appendChild(speakerEl)
+    }
+
+    if (panel.image) {
+      const img = document.createElement('img')
+      img.src = panel.image
+      img.className = 'click-comic-image'
+      el.appendChild(img)
+    }
+
+    const textEl = document.createElement('div')
+    textEl.className = 'click-comic-text'
+    textEl.textContent = panel.text
+    el.appendChild(textEl)
+
+    if (!panel.choices?.length) {
+      el.addEventListener('click', () => this.advance())
+    }
+
+    this.container.appendChild(el)
   }
 
   protected emit(event: string, ...args: unknown[]): void {

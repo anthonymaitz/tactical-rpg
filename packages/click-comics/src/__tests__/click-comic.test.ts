@@ -50,3 +50,65 @@ describe('ClickComic constructor and events', () => {
     cleanup(container)
   })
 })
+
+describe('panel rendering', () => {
+  it('renders panel text into the container after play()', () => {
+    const container = makeContainer()
+    const comic = new ClickComic(container, [{ text: 'Act 1' }])
+    comic.play()
+    expect(container.textContent).toContain('Act 1')
+    cleanup(container)
+  })
+
+  it('renders speaker name when provided', () => {
+    const container = makeContainer()
+    const comic = new ClickComic(container, [{ text: 'Hi', speaker: 'Goblin' }])
+    comic.play()
+    expect(container.textContent).toContain('Goblin')
+    cleanup(container)
+  })
+
+  it('renders an img element when image is provided', () => {
+    const container = makeContainer()
+    const comic = new ClickComic(container, [{ text: 'Scene', image: '/scene.png' }])
+    comic.play()
+    const img = container.querySelector('img')
+    expect(img).not.toBeNull()
+    expect(img?.src).toContain('scene.png')
+    cleanup(container)
+  })
+
+  it('advances to the next panel on container click', () => {
+    const container = makeContainer()
+    const panels: Panel[] = [{ text: 'Panel 1' }, { text: 'Panel 2' }]
+    const comic = new ClickComic(container, panels)
+    comic.play()
+    expect(container.textContent).toContain('Panel 1')
+    container.querySelector('.click-comic-panel')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(container.textContent).toContain('Panel 2')
+    cleanup(container)
+  })
+
+  it('emits complete after clicking past the last panel', () => {
+    const container = makeContainer()
+    const comic = new ClickComic(container, singlePanel)
+    const completeSpy = vi.fn()
+    comic.on('complete', completeSpy)
+    comic.play()
+    container.querySelector('.click-comic-panel')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(completeSpy).toHaveBeenCalledOnce()
+    cleanup(container)
+  })
+
+  it('emits advance with the panel index that was left', () => {
+    const container = makeContainer()
+    const panels: Panel[] = [{ text: 'P1' }, { text: 'P2' }]
+    const comic = new ClickComic(container, panels)
+    const advanceSpy = vi.fn()
+    comic.on('advance', advanceSpy)
+    comic.play()
+    container.querySelector('.click-comic-panel')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(advanceSpy).toHaveBeenCalledWith(0)
+    cleanup(container)
+  })
+})
