@@ -75,3 +75,5 @@ export interface CombatState {
   isOver: boolean
   winningSide?: 'players' | 'npcs'
 }
+
+export * from './hero-persistence'
