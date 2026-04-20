@@ -16,7 +16,7 @@ const makePlayer = (): ActorState => ({
 })
 
 const makeNPC = (): ActorState => ({
-  id: 'goblin', name: 'Goblin', personality: 'wild', characterClass: 'fighter', die: 'd6',
+  id: 'goblin', name: 'Goblin', personality: 'passionate', characterClass: 'fighter', die: 'd6',
   hp: 8, maxHp: 8, energy: 3, maxEnergy: 3, speed: 2,
   position: { x: 3, y: 0 }, statusEffects: [], isNPC: true,
   abilities: [{ ...strikeAbility, energyCost: 1 }],
@@ -82,6 +82,7 @@ describe('full combat simulation', () => {
   it('log entries are non-empty strings', () => {
     let state = makeInitialState()
     const abilityAction = getValidActions('player', state).find(a => a.type === 'ability')!
+    expect(abilityAction).toBeDefined()
     const result = resolveAction('player', abilityAction, state)
     state = applyResult(result, state)
     expect(state.log.every(entry => typeof entry === 'string' && entry.length > 0)).toBe(true)
@@ -110,5 +111,7 @@ describe('full combat simulation', () => {
       }
       iterations++
     }
+
+    expect(state.isOver).toBe(true)
   })
 })
