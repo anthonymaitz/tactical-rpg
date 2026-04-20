@@ -21,12 +21,17 @@ export class ClickComic {
   }
 
   play(): this {
+    if (this.timer !== null) {
+      clearTimeout(this.timer)
+      this.timer = null
+    }
     this.currentIndex = 0
     this.renderCurrent()
     return this
   }
 
   advance(): void {
+    if (this.currentIndex >= this.panels.length) return  // already complete
     if (this.timer !== null) {
       clearTimeout(this.timer)
       this.timer = null

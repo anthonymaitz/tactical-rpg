@@ -231,3 +231,34 @@ describe('choice panels', () => {
     cleanup(container)
   })
 })
+
+describe('edge cases', () => {
+  it('advance() after complete does not emit complete again', () => {
+    const container = makeContainer()
+    const completeSpy = vi.fn()
+    const comic = new ClickComic(container, singlePanel).on('complete', completeSpy)
+    comic.play()
+    container.querySelector('.click-comic-panel')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    // Comic is complete — call advance() again
+    comic.advance()
+    comic.advance()
+    expect(completeSpy).toHaveBeenCalledOnce()
+    cleanup(container)
+  })
+
+  it('play() clears a pending duration timer before restarting', async () => {
+    const container = makeContainer()
+    const panels: Panel[] = [{ text: 'Slow', duration: 200 }, { text: 'Panel 2' }]
+    const comic = new ClickComic(container, panels)
+    comic.play()
+    // Restart immediately before timer fires
+    comic.play()
+    expect(container.textContent).toContain('Slow')
+    // Wait past the original timer — should NOT have advanced
+    await new Promise(r => setTimeout(r, 300))
+    // After restart, we're on panel 0 again; the new timer fires
+    // so panel 2 text should now be showing
+    expect(container.textContent).toContain('Panel 2')
+    cleanup(container)
+  })
+})
