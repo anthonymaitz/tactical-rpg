@@ -4,7 +4,8 @@
     "rootDir": "src",
     "outDir": "dist",
     "lib": ["ES2022", "DOM"],
-    "jsx": "preserve"
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js"
   },
   "include": ["src"]
 }
