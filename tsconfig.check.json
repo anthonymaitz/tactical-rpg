@@ -12,7 +12,8 @@
     "paths": {
       "shared-types": ["./packages/shared-types/src/index.ts"],
       "rules-engine": ["./packages/rules-engine/src/index.ts"],
-      "click-comics": ["./packages/click-comics/src/index.ts"]
+      "click-comics": ["./packages/click-comics/src/index.ts"],
+      "playsets": ["./packages/playsets/src/index.tsx"]
     }
   },
   "include": [

@@ -1,9 +1,22 @@
-export function CombatScreen() {
+import { PlaysetBoard } from 'playsets'
+import type { CombatState, Action } from 'shared-types'
+
+interface CombatScreenProps {
+  combatState?: CombatState
+  validMoves?: Action[]
+  onAction?: (a: Action) => void
+}
+
+export function CombatScreen({ combatState, validMoves, onAction }: CombatScreenProps) {
   return (
-    <div>
-      <div id="playsets-viewport" style={{ width: '100%', height: '100vh' }}>
-        {/* Playsets 3D combat view — wired in Plan 7 */}
-      </div>
+    <div style={{ width: '100%', height: '100vh' }}>
+      <PlaysetBoard
+        mode="combat"
+        roomId="combat"
+        combatState={combatState}
+        validMoves={validMoves}
+        onAction={onAction}
+      />
     </div>
   )
 }
