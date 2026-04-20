@@ -1,0 +1,12 @@
+{
+  "name": "game",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "shared-types": "workspace:*",
+    "rules-engine": "workspace:*",
+    "click-comics": "workspace:*",
+    "simplequest-hud": "workspace:*",
+    "playsets": "workspace:*"
+  }
+}

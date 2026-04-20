@@ -4,6 +4,12 @@
   },
   "include": [],
   "references": [
-    { "path": "packages/shared-types" }
+    { "path": "packages/shared-types" },
+    { "path": "packages/rules-engine" },
+    { "path": "packages/click-comics" },
+    { "path": "packages/simplequest-hud" },
+    { "path": "packages/playsets" },
+    { "path": "apps/game" },
+    { "path": "server" }
   ]
 }
