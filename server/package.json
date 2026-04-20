@@ -2,14 +2,20 @@
   "name": "server",
   "private": true,
   "type": "module",
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "test": "vitest run"
+  },
   "dependencies": {
     "shared-types": "workspace:*",
     "rules-engine": "workspace:*",
     "@colyseus/core": "^0.15.0",
     "@colyseus/bun-websockets": "^0.15.0",
-    "hono": "^4.0.0"
+    "hono": "^4.0.0",
+    "jose": "^5.0.0"
   },
   "devDependencies": {
-    "bun-types": "latest"
+    "bun-types": "latest",
+    "vitest": "^1.6.0"
   }
 }
