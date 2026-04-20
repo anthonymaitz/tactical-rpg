@@ -3,5 +3,7 @@
     "skipLibCheck": true
   },
   "include": [],
-  "references": []
+  "references": [
+    { "path": "packages/shared-types" }
+  ]
 }
