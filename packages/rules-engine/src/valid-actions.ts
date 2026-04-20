@@ -47,7 +47,7 @@ function getValidTargets(
     case 'ally':
       return alive.filter(a => a.isNPC === actor.isNPC && a.id !== actorId).map(a => a.id)
     case 'self':
-      return [actorId]
+      return alive.filter(a => a.id === actorId).map(a => a.id)
     case 'area':
       return alive.filter(a => a.isNPC !== actor.isNPC).map(a => a.id)
   }

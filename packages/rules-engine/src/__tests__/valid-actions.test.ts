@@ -84,11 +84,37 @@ describe('getValidActions', () => {
     expect(abilities).toHaveLength(0)
   })
 
+  it('includes ability when both energy and cost are 0', () => {
+    const freeAbility: AbilityDefinition = {
+      id: 'taunt', name: 'Taunt', energyCost: 0,
+      diceNotation: { kind: 'notation', value: '1d4' },
+      targetType: 'enemy', effect: 'debuff', context: 'inCombat',
+    }
+    const a1 = makeActor('a1', { abilities: [freeAbility], energy: 0 })
+    const a2 = makeActor('a2', { isNPC: true, position: { x: 1, y: 0 } })
+    const state = makeState({ a1, a2 })
+    const abilities = getValidActions('a1', state).filter(a => a.type === 'ability')
+    expect(abilities.length).toBeGreaterThan(0)
+  })
+
   it('excludes outOfCombat abilities', () => {
     const a1 = makeActor('a1', { abilities: [oocAbility], energy: 5 })
     const state = makeState({ a1 })
     const abilities = getValidActions('a1', state).filter(a => a.type === 'ability')
     expect(abilities).toHaveLength(0)
+  })
+
+  it('includes inGeneral abilities', () => {
+    const inGeneralAbility: AbilityDefinition = {
+      id: 'rally', name: 'Rally', energyCost: 1,
+      diceNotation: { kind: 'notation', value: '1d4' },
+      targetType: 'self', effect: 'buff', context: 'inGeneral',
+    }
+    const a1 = makeActor('a1', { abilities: [inGeneralAbility], energy: 5 })
+    const state = makeState({ a1 })
+    const abilities = getValidActions('a1', state).filter(a => a.type === 'ability')
+    expect(abilities.length).toBeGreaterThan(0)
+    expect(abilities[0].type === 'ability' && abilities[0].ability.id).toBe('rally')
   })
 
   it('targets allies with heal ability', () => {
