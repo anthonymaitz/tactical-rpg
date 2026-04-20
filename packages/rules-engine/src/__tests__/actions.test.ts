@@ -200,6 +200,22 @@ describe('applyResult', () => {
     expect(next.actors['a1'].position).toEqual({ x: 2, y: 3 })
   })
 
+  it('does not set isOver when there are no NPC actors', () => {
+    const player = makeActor({ id: 'p1', isNPC: false })
+    const state = makeState({ p1: player })
+    const result = {
+      action: { type: 'skip' as const, actorId: 'p1' },
+      rolls: [],
+      hpDeltas: {},
+      energyDeltas: {},
+      statusEffectsApplied: {},
+      description: 'skipped',
+    }
+    const next = applyResult(result, state)
+    expect(next.isOver).toBe(false)
+    expect(next.winningSide).toBeUndefined()
+  })
+
   it('appends description to log', () => {
     const state = makeState({ a1: makeActor({ id: 'a1' }) })
     const result = {

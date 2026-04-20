@@ -86,9 +86,15 @@ export function applyResult(result: ActionResult, state: CombatState): CombatSta
     if (a) actors[result.action.actorId] = { ...a, position: result.action.destination }
   }
 
-  const playersAlive = Object.values(actors).some(a => !a.isNPC && a.hp > 0)
-  const npcsAlive = Object.values(actors).some(a => a.isNPC && a.hp > 0)
-  const isOver = !playersAlive || !npcsAlive
+  const playerActors = Object.values(actors).filter(a => !a.isNPC)
+  const npcActors = Object.values(actors).filter(a => a.isNPC)
+
+  const isOver =
+    playerActors.length > 0 &&
+    npcActors.length > 0 &&
+    (!playerActors.some(a => a.hp > 0) || !npcActors.some(a => a.hp > 0))
+
+  const playersAlive = playerActors.some(a => a.hp > 0)
   const winningSide = isOver ? (playersAlive ? 'players' : 'npcs') : undefined
 
   return {
