@@ -14,13 +14,14 @@ heroRoutes.use('*', async (c, next) => {
     return c.json({ error: 'Unauthorized' }, 401)
   }
   const token = auth.slice(7)
-  const secret = process.env.SUPABASE_JWT_SECRET
-  if (!secret) return c.json({ error: 'Server misconfigured' }, 500)
+  const projectUrl = process.env.SUPABASE_URL
+  if (!projectUrl) return c.json({ error: 'Server misconfigured' }, 500)
   try {
-    const userId = await verifySupabaseJWT(token, secret)
+    const userId = await verifySupabaseJWT(token, projectUrl)
     c.set('userId', userId)
     await next()
-  } catch {
+  } catch (e) {
+    console.error('JWT verification failed:', e)
     return c.json({ error: 'Invalid token' }, 401)
   }
 })
