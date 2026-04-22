@@ -1,51 +1,53 @@
-import { describe, it, expect, beforeAll } from 'vitest'
-import { SignJWT } from 'jose'
-import { verifySupabaseJWT } from '../auth'
+import { describe, it, expect, beforeAll, vi } from 'vitest'
+import { generateKeyPair, SignJWT } from 'jose'
 
-const TEST_SECRET = 'super-secret-test-key-at-least-32-chars'
+const mockGetKey = vi.fn()
+vi.mock('jose', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('jose')>()
+  return { ...actual, createRemoteJWKSet: () => mockGetKey }
+})
 
-async function signTestJWT(payload: Record<string, unknown>): Promise<string> {
-  const secret = new TextEncoder().encode(TEST_SECRET)
-  return new SignJWT(payload)
-    .setProtectedHeader({ alg: 'HS256' })
-    .setIssuedAt()
-    .setExpirationTime('1h')
-    .sign(secret)
-}
+const { verifySupabaseJWT } = await import('../auth')
 
 describe('verifySupabaseJWT', () => {
-  let validToken: string
+  let privateKey: CryptoKey
   const userId = 'user-uuid-1234'
+  const projectUrl = 'https://test.supabase.co'
 
   beforeAll(async () => {
-    validToken = await signTestJWT({
-      sub: userId,
-      aud: 'authenticated',
-      role: 'authenticated',
-    })
+    const pair = await generateKeyPair('ES256')
+    privateKey = pair.privateKey
+    mockGetKey.mockResolvedValue(pair.publicKey)
   })
 
+  async function signToken(payload: Record<string, unknown>, key?: CryptoKey) {
+    return new SignJWT(payload)
+      .setProtectedHeader({ alg: 'ES256' })
+      .setIssuedAt()
+      .setExpirationTime('1h')
+      .sign(key ?? privateKey)
+  }
+
   it('returns userId for a valid token', async () => {
-    const result = await verifySupabaseJWT(validToken, TEST_SECRET)
-    expect(result).toBe(userId)
+    const token = await signToken({ sub: userId, aud: 'authenticated' })
+    expect(await verifySupabaseJWT(token, projectUrl)).toBe(userId)
   })
 
   it('throws for an expired token', async () => {
-    const secret = new TextEncoder().encode(TEST_SECRET)
-    const expiredToken = await new SignJWT({ sub: userId, aud: 'authenticated' })
-      .setProtectedHeader({ alg: 'HS256' })
+    const token = await new SignJWT({ sub: userId, aud: 'authenticated' })
+      .setProtectedHeader({ alg: 'ES256' })
       .setIssuedAt(Math.floor(Date.now() / 1000) - 7200)
       .setExpirationTime(Math.floor(Date.now() / 1000) - 3600)
-      .sign(secret)
-    await expect(verifySupabaseJWT(expiredToken, TEST_SECRET)).rejects.toThrow()
-  })
-
-  it('throws for a token signed with the wrong secret', async () => {
-    const wrongToken = await signTestJWT({ sub: userId, aud: 'authenticated' })
-    await expect(verifySupabaseJWT(wrongToken, 'wrong-secret-key-at-least-32-chars-x')).rejects.toThrow()
+      .sign(privateKey)
+    await expect(verifySupabaseJWT(token, projectUrl)).rejects.toThrow()
   })
 
   it('throws for a malformed token string', async () => {
-    await expect(verifySupabaseJWT('not.a.jwt', TEST_SECRET)).rejects.toThrow()
+    await expect(verifySupabaseJWT('not.a.jwt', projectUrl)).rejects.toThrow()
+  })
+
+  it('throws when sub claim is missing', async () => {
+    const token = await signToken({ aud: 'authenticated' })
+    await expect(verifySupabaseJWT(token, projectUrl)).rejects.toThrow()
   })
 })
