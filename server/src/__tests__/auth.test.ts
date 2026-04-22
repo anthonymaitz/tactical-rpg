@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest'
-import { generateKeyPair, SignJWT } from 'jose'
+import { generateKeyPair, SignJWT, type KeyLike } from 'jose'
 
 const mockGetKey = vi.fn()
 vi.mock('jose', async (importOriginal) => {
@@ -10,7 +10,7 @@ vi.mock('jose', async (importOriginal) => {
 const { verifySupabaseJWT } = await import('../auth')
 
 describe('verifySupabaseJWT', () => {
-  let privateKey: CryptoKey
+  let privateKey: KeyLike
   const userId = 'user-uuid-1234'
   const projectUrl = 'https://test.supabase.co'
 
@@ -20,7 +20,7 @@ describe('verifySupabaseJWT', () => {
     mockGetKey.mockResolvedValue(pair.publicKey)
   })
 
-  async function signToken(payload: Record<string, unknown>, key?: CryptoKey) {
+  async function signToken(payload: Record<string, unknown>, key?: KeyLike) {
     return new SignJWT(payload)
       .setProtectedHeader({ alg: 'ES256' })
       .setIssuedAt()
