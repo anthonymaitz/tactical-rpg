@@ -6,10 +6,10 @@ import { THE_INN } from 'shared-types'
 import type { Position } from 'shared-types'
 
 interface MoveMessage {
-  characterId: string
   destination: Position
-  speed: number
 }
+
+const INN_MOVE_SPEED = 3
 
 export class ExploreRoom extends BaseRoom<ExploreState> {
   onCreate(): void {
@@ -63,7 +63,7 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
 
     const currentPos: Position = { x: current.x, y: current.y }
 
-    if (!isValidMove(currentPos, message.destination, message.speed)) {
+    if (!isValidMove(currentPos, message.destination, INN_MOVE_SPEED)) {
       client.send('MOVE_REJECTED', { reason: 'out_of_range' })
       return
     }

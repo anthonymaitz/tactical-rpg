@@ -10,6 +10,7 @@ export function isValidMove(current: Position, destination: Position, speed: num
 }
 
 export function isWalkable(map: InnMap, pos: Position): boolean {
+  if (map.walls.length === 0) return false
   if (pos.x < 0 || pos.y < 0 || pos.y >= map.walls.length || pos.x >= map.walls[0].length) return false
   return map.walls[pos.y][pos.x] === 0
 }

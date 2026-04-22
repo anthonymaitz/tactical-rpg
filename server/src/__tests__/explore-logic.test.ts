@@ -50,6 +50,10 @@ describe('isWalkable', () => {
     expect(isWalkable(THE_INN, { x: -1, y: 0 })).toBe(false)
     expect(isWalkable(THE_INN, { x: 0, y: 100 })).toBe(false)
   })
+
+  it('returns false for out-of-bounds x', () => {
+    expect(isWalkable(THE_INN, { x: 999, y: 1 })).toBe(false)
+  })
 })
 
 describe('isAdjacent', () => {
@@ -69,5 +73,9 @@ describe('isAdjacent', () => {
 
   it('returns false for positions 2 steps away', () => {
     expect(isAdjacent({ x: 5, y: 5 }, { x: 7, y: 5 })).toBe(false)
+  })
+
+  it('returns true for upward adjacent position', () => {
+    expect(isAdjacent({ x: 5, y: 5 }, { x: 5, y: 4 })).toBe(true)
   })
 })
