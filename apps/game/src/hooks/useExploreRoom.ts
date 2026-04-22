@@ -30,9 +30,11 @@ export function useExploreRoom(token: string | null, heroIds: string[]) {
   useEffect(() => {
     if (!token) return
     let room: Room<ExploreState>
+    let cancelled = false
 
     joinRoom<ExploreState>('ExploreRoom', { token, heroIds })
       .then((r) => {
+        if (cancelled) { r.leave(); return }
         room = r
         roomRef.current = r
         setMySessionId(r.sessionId)
@@ -60,17 +62,21 @@ export function useExploreRoom(token: string | null, heroIds: string[]) {
           setInteraction(data)
         })
       })
-      .catch((e: Error) => setError(e.message))
+      .catch((e: Error) => { if (!cancelled) setError(e.message) })
 
     return () => {
+      cancelled = true
       room?.leave()
       roomRef.current = null
       setConnected(false)
+      setMySessionId(null)
+      setError(null)
       setPlayers({})
       setNpcs([])
       setDoors([])
+      setInteraction(null)
     }
-  }, [token])
+  }, [token, heroIds])
 
   function move(destination: Position) {
     roomRef.current?.send('MOVE', { destination })
