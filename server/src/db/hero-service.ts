@@ -24,6 +24,16 @@ function toHeroRecord(row: Record<string, unknown>): HeroRecord {
 }
 
 export const heroService = {
+  async getHero(heroId: string): Promise<HeroRecord | null> {
+    const { data, error } = await supabase
+      .from('heroes')
+      .select('*')
+      .eq('id', heroId)
+      .single()
+    if (error) return null
+    return toHeroRecord(data)
+  },
+
   async listHeroes(userId: string): Promise<HeroRecord[]> {
     const { data, error } = await supabase
       .from('heroes')

@@ -52,6 +52,7 @@ export class ExploreRenderer {
           )
           mesh.position = new Vector3(x * TILE_SIZE, 0.3, y * TILE_SIZE)
           mesh.material = wallMat
+          mesh.isPickable = false
         } else {
           const mesh = MeshBuilder.CreateBox(
             `floor-${x}-${y}`,
@@ -99,6 +100,7 @@ export class ExploreRenderer {
           { diameter: 0.6, height: 0.7, tessellation: 12 },
           this.scene,
         )
+        mesh.isPickable = false
         const mat = new StandardMaterial(`mat-${id}`, this.scene)
         const colorKey = token.type === 'player' && token.isMe ? 'player_me' : token.type
         mat.diffuseColor = TOKEN_COLORS[colorKey] ?? TOKEN_COLORS.npc

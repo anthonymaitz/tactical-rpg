@@ -2,6 +2,7 @@ import type { Client } from '@colyseus/core'
 import { ExploreState, PlayerPosition, NpcEntity, DoorEntity } from '../schemas/ExploreState'
 import { BaseRoom } from './BaseRoom'
 import { isValidMove, isWalkable, isAdjacent } from './logic/explore-logic'
+import { heroService } from '../db/hero-service'
 import { THE_INN } from 'shared-types'
 import type { Position } from 'shared-types'
 
@@ -51,7 +52,24 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     pos.y = THE_INN.spawnY
     pos.characterId = client.sessionId
     this.state.players.set(client.sessionId, pos)
-    client.userData = { ...(client.userData ?? {}), heroIds: options.heroIds ?? [] }
+    const heroIds = options.heroIds ?? []
+    client.userData = { ...(client.userData ?? {}), heroIds }
+
+    if (heroIds.length > 0) {
+      const hero = await heroService.getHero(heroIds[0])
+      if (hero) {
+        client.send('HERO_STATE', {
+          name: hero.name,
+          class: hero.characterClass,
+          personality: hero.personality,
+          profession: '',
+          die: hero.die,
+          hp: hero.maxHp,
+          combat: 'inGeneral',
+          energy: Array(10).fill(true) as boolean[],
+        })
+      }
+    }
   }
 
   onLeave(client: Client): void {

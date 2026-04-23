@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen } from '@solidjs/testing-library'
 import App from '../App'
 
 vi.mock('../lib/supabase', () => ({
@@ -14,12 +14,12 @@ vi.mock('../lib/supabase', () => ({
 }))
 
 vi.mock('../hooks/useHeroes', () => ({
-  useHeroes: () => ({ heroes: [], loading: false, createHero: vi.fn() }),
+  createHeroes: () => ({ heroes: () => [], loading: () => false, createHero: vi.fn() }),
 }))
 
 describe('App', () => {
   it('shows the connect screen by default', () => {
-    render(<App />)
+    render(() => <App />)
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
   })
 })

@@ -35,6 +35,10 @@ export function ExploreScreen(props: ExploreScreenProps) {
   )
   const [showSheet, setShowSheet] = createSignal(false)
   const contentJson = JSON.stringify(sampleContent)
+  const characterJson = () => {
+    const h = state.heroState()
+    return h ? JSON.stringify(h) : ''
+  }
 
   function handleCellClick(x: number, y: number) {
     const pos = state.myPosition()
@@ -112,7 +116,7 @@ export function ExploreScreen(props: ExploreScreenProps) {
 
             <Show when={showSheet()}>
               <div style={{ width: '480px', 'flex-shrink': '0' }}>
-                <SimpleQuestHUD content={contentJson} />
+                <SimpleQuestHUD content={contentJson} character={characterJson()} />
               </div>
             </Show>
           </div>

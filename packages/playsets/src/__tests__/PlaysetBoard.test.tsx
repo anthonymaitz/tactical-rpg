@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render } from '@testing-library/react'
+import { render } from '@solidjs/testing-library'
 import '@testing-library/jest-dom'
 
-// Mock BabylonJS before importing PlaysetBoard
 vi.mock('@babylonjs/core', () => ({
   Engine: vi.fn().mockImplementation(() => ({
     runRenderLoop: vi.fn(),
@@ -38,7 +37,7 @@ describe('PlaysetBoard', () => {
   })
 
   it('renders a canvas element', () => {
-    render(<PlaysetBoard mode="explore" roomId="room1" seed={1n} />)
+    render(() => <PlaysetBoard mode="explore" roomId="room1" seed={1n} />)
     expect(document.querySelector('canvas')).not.toBeNull()
   })
 
@@ -52,14 +51,13 @@ describe('PlaysetBoard', () => {
       log: [],
       isOver: false,
     }
-    render(<PlaysetBoard mode="combat" roomId="room1" combatState={combatState} />)
+    render(() => <PlaysetBoard mode="combat" roomId="room1" combatState={combatState} />)
     expect(document.querySelector('canvas')).not.toBeNull()
   })
 
   it('calls onAction when provided', () => {
     const onAction = vi.fn()
-    render(<PlaysetBoard mode="combat" roomId="room1" onAction={onAction} />)
+    render(() => <PlaysetBoard mode="combat" roomId="room1" onAction={onAction} />)
     expect(document.querySelector('canvas')).not.toBeNull()
-    // onAction is wired up — verify the prop is accepted without errors
   })
 })

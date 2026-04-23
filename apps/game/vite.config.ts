@@ -1,6 +1,9 @@
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import solid from 'vite-plugin-solid'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [solid()],
+  optimizeDeps: {
+    include: ['@babylonjs/core'],
+  },
 })

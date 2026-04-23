@@ -7,15 +7,15 @@ interface CombatScreenProps {
   onAction?: (a: Action) => void
 }
 
-export function CombatScreen({ combatState, validMoves, onAction }: CombatScreenProps) {
+export function CombatScreen(props: CombatScreenProps) {
   return (
     <div style={{ width: '100%', height: '100vh' }}>
       <PlaysetBoard
         mode="combat"
         roomId="combat"
-        combatState={combatState}
-        validMoves={validMoves}
-        onAction={onAction}
+        combatState={props.combatState}
+        validMoves={props.validMoves}
+        onAction={props.onAction}
       />
     </div>
   )

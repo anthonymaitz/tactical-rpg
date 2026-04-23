@@ -1,5 +1,4 @@
-// apps/game/src/hooks/useHeroes.ts
-import { useState, useEffect, useCallback } from 'react'
+import { createSignal, createEffect, on } from 'solid-js'
 import type { HeroRecord, GearSlots } from 'shared-types'
 
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
@@ -22,50 +21,49 @@ export type CreateHeroInput = {
   personality: string
 }
 
-export function useHeroes(token: string | null) {
-  const [heroes, setHeroes] = useState<HeroRecord[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+export function createHeroes(token: () => string | null) {
+  const [heroes, setHeroes] = createSignal<HeroRecord[]>([])
+  const [loading, setLoading] = createSignal(false)
+  const [error, setError] = createSignal<string | null>(null)
 
-  const refresh = useCallback(async () => {
-    if (!token) return
+  async function refresh() {
+    const t = token()
+    if (!t) return
     setLoading(true)
     setError(null)
     try {
-      const data = await apiFetch<HeroRecord[]>('/heroes', token)
+      const data = await apiFetch<HeroRecord[]>('/heroes', t)
       setHeroes(data)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load heroes')
     } finally {
       setLoading(false)
     }
-  }, [token])
+  }
 
-  useEffect(() => { refresh() }, [refresh])
+  createEffect(on(token, (t) => { if (t) void refresh() }))
 
-  const createHero = useCallback(async (input: CreateHeroInput): Promise<HeroRecord> => {
-    if (!token) throw new Error('Not authenticated')
-    const hero = await apiFetch<HeroRecord>('/heroes', token, {
+  async function createHero(input: CreateHeroInput): Promise<HeroRecord> {
+    const t = token()
+    if (!t) throw new Error('Not authenticated')
+    const hero = await apiFetch<HeroRecord>('/heroes', t, {
       method: 'POST',
       body: JSON.stringify(input),
     })
     setHeroes((prev) => [...prev, hero])
     return hero
-  }, [token])
+  }
 
-  const equipGear = useCallback(async (
-    heroId: string,
-    slot: keyof GearSlots,
-    item: string | null
-  ): Promise<HeroRecord> => {
-    if (!token) throw new Error('Not authenticated')
-    const hero = await apiFetch<HeroRecord>(`/heroes/${heroId}/gear`, token, {
+  async function equipGear(heroId: string, slot: keyof GearSlots, item: string | null): Promise<HeroRecord> {
+    const t = token()
+    if (!t) throw new Error('Not authenticated')
+    const hero = await apiFetch<HeroRecord>(`/heroes/${heroId}/gear`, t, {
       method: 'PATCH',
       body: JSON.stringify({ slot, item }),
     })
     setHeroes((prev) => prev.map((h) => (h.id === heroId ? hero : h)))
     return hero
-  }, [token])
+  }
 
   return { heroes, loading, error, refresh, createHero, equipGear }
 }

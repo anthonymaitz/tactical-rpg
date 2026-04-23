@@ -22,6 +22,8 @@ export class SceneManager {
     this.engine.runRenderLoop(() => {
       this.scene.render()
     })
+
+    this.engine.resize()
   }
 
   resize(): void {

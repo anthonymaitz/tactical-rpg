@@ -2,5 +2,4 @@ packages:
   - 'packages/*'
   - 'apps/*'
   - 'server'
-patchedDependencies:
-  bun-serve-express@1.0.5: patches/bun-serve-express@1.0.5.patch
+  - '../simplequest'

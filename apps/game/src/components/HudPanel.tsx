@@ -1,17 +1,10 @@
-import type React from 'react'
-
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      'simple-quest': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement> & { content?: string }, HTMLElement>
-    }
-  }
-}
+import { SimpleQuestHUD } from 'simplequest-hud'
 
 interface HudPanelProps {
   content: string
+  character?: string
 }
 
-export function HudPanel({ content }: HudPanelProps) {
-  return <simple-quest content={content} />
+export function HudPanel(props: HudPanelProps) {
+  return <SimpleQuestHUD content={props.content} character={props.character} />
 }

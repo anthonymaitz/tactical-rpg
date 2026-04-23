@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { onMount, onCleanup } from 'solid-js'
 import { ClickComic } from 'click-comics'
 import type { Panel } from 'click-comics'
 
@@ -7,21 +7,15 @@ interface ComicPlayerProps {
   onComplete: () => void
 }
 
-export function ComicPlayer({ panels, onComplete }: ComicPlayerProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
+export function ComicPlayer(props: ComicPlayerProps) {
+  let container!: HTMLDivElement
 
-  useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-
-    const comic = new ClickComic(container, panels)
-    comic.on('complete', onComplete)
+  onMount(() => {
+    const comic = new ClickComic(container, props.panels)
+    comic.on('complete', props.onComplete)
     comic.play()
+    onCleanup(() => { container.innerHTML = '' })
+  })
 
-    return () => {
-      container.innerHTML = ''
-    }
-  }, [panels, onComplete])
-
-  return <div ref={containerRef} />
+  return <div ref={container} />
 }
