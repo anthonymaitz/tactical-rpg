@@ -1,10 +1,11 @@
 import { createSignal, Show } from 'solid-js'
 import { THE_INN } from 'shared-types'
+import type { ExploreMap, ExploreToken } from 'shared-types'
 import type { Panel } from 'click-comics'
 import { createExploreRoom } from '../hooks/useExploreRoom'
-import { InnView } from './InnView'
 import { ComicPlayer } from '../components/ComicPlayer'
 import { SimpleQuestHUD, sampleContent } from 'simplequest-hud'
+import { PlaysetBoard } from 'playsets'
 
 const NPC_PANELS: Record<string, Panel[]> = {
   innkeeper: [
@@ -48,6 +49,31 @@ export function ExploreScreen(props: ExploreScreenProps) {
     }
   }
 
+  const exploreMap = (): ExploreMap => {
+    const tokens: ExploreToken[] = [
+      ...Object.entries(state.players()).map(([id, p]) => ({
+        x: p.x, y: p.y,
+        type: 'player' as const,
+        id,
+        label: id,
+        isMe: id === state.mySessionId(),
+      })),
+      ...state.npcs().map((n) => ({
+        x: n.x, y: n.y,
+        type: 'npc' as const,
+        id: n.id,
+        label: n.name,
+      })),
+      ...state.doors().map((d) => ({
+        x: d.x, y: d.y,
+        type: 'door' as const,
+        id: d.id,
+        label: d.label,
+      })),
+    ]
+    return { walls: THE_INN.walls, tokens }
+  }
+
   const interactionPanels = (): Panel[] | null => {
     const ev = state.interaction()
     if (!ev) return null
@@ -75,20 +101,13 @@ export function ExploreScreen(props: ExploreScreenProps) {
           </div>
 
           <div style={{ display: 'flex', gap: '20px', 'align-items': 'flex-start', width: '100%', 'justify-content': 'center' }}>
-            <div>
-              <InnView
-                map={THE_INN}
-                players={state.players()}
-                mySessionId={state.mySessionId()}
-                npcs={state.npcs()}
-                doors={state.doors()}
+            <div style={{ width: '720px', height: '480px', 'flex-shrink': '0' }}>
+              <PlaysetBoard
+                mode="explore"
+                roomId="inn"
+                exploreMap={exploreMap()}
                 onCellClick={handleCellClick}
               />
-              <Show when={state.myPosition()}>
-                <div style={{ 'margin-top': '8px', 'font-size': '11px', color: '#555', 'text-align': 'center' }}>
-                  ({state.myPosition()!.x}, {state.myPosition()!.y})
-                </div>
-              </Show>
             </div>
 
             <Show when={showSheet()}>

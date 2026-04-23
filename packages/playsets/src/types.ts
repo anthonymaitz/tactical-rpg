@@ -1,4 +1,4 @@
-import type { CombatState, Action, Position } from 'shared-types'
+import type { CombatState, Action, Position, ExploreMap } from 'shared-types'
 
 export type PlaysetMode = 'explore' | 'combat' | 'vtt'
 
@@ -18,6 +18,8 @@ export interface PlaysetBoardProps {
   seed?: bigint
   combatState?: CombatState
   validMoves?: Action[]
+  exploreMap?: ExploreMap
+  onCellClick?: (x: number, y: number) => void
   onEncounter?: (e: EncounterEvent) => void
   onAction?: (a: Action) => void
   onBuild?: (e: BuildEvent) => void

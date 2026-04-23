@@ -61,3 +61,4 @@ export interface CombatState {
 
 export * from './hero-persistence'
 export * from './inn-map'
+export * from './explore-map'
