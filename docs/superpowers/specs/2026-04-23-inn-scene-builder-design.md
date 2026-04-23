@@ -54,15 +54,21 @@ CREATE POLICY "scenes_read"  ON scenes FOR SELECT USING (auth.role() = 'authenti
 CREATE POLICY "scenes_write" ON scenes FOR ALL    USING (created_by = auth.uid());
 ```
 
-`scene_data` shape (from sub-project 1 spec):
+`scene_data` shape (extends sub-project 1 spec with `tokens`):
 ```json
 {
   "buildings": [{ "col": 0, "row": 0, "tileId": "wall-wood" }],
   "layers":    [{ "id": 1, "background": "grass" }],
   "props":     [{ "id": "door-1", "col": 5, "row": 3, "tileId": "door-wood" }],
-  "weather":   "sunny"
+  "weather":   "sunny",
+  "tokens": [
+    { "id": "innkeeper",   "type": "npc",  "role": "innkeeper",  "name": "Innkeeper",        "col": 10, "row": 2 },
+    { "id": "door-forest", "type": "door", "biomeId": "verdant-forest", "label": "Verdant Forest", "col": 16, "row": 12 }
+  ]
 }
 ```
+
+`tokens` entries carry enough data for both rendering (position) and ExploreRoom entity setup (role, biomeId, label). NPC and door positions are no longer hardcoded in `THE_INN` — they come from the saved scene.
 
 Slugs are human-readable identifiers: `"inn-main"`, `"forest-clearing"`, `"dungeon-entrance"`. The inn uses `"inn-main"` by default.
 
@@ -118,20 +124,30 @@ Explorer and combat sessions never load builder code.
 ### Babylon managers in build mode
 
 In addition to `BuildingManager` (already present in explore mode), build mode initialises:
-- `PropManager` — click-to-place props (doors, furniture, decorations)
+
+- `PropManager` — click-to-place props (furniture, decorations)
+- `SpriteManager` — place and render NPC/door tokens as sprites
+- `DragController` — drag any placed sprite or prop to reposition it
 - `LayerBackgroundManager` — layer backgrounds driven by LayerPanel
 - `WeatherSystem` — weather selection
 
 These are instantiated in `onMount` and passed to `BuilderRoot` as props, only when `mode === 'build'`. They are disposed in `onCleanup`.
 
-**Not in scope for sub-project 2:** `RoofManager`, `SpriteManager`/token placement in builder, `DragController` for moving placed props.
+`DragController` is wired with:
+
+- `onDragDrop(instanceId, col, row)` → updates the token/prop position in the builder's in-memory state
+- `canDrop(col, row)` → returns true only for walkable cells (no walls)
+
+**Not in scope for sub-project 2:** `RoofManager`.
 
 ### BuilderToolbar
 
 Left sidebar overlay (positioned `absolute` over the canvas via CSS). Contains:
-- Tab strip: Walls | Floors | Props
-- Tile grid: thumbnails from the tile manifest JSON (embedded in the bundle)
-- Selected tile highlighted; clicking a canvas cell places it
+
+- Tab strip: Walls | Floors | Props | Tokens
+- Tile/token grid: thumbnails from the tile manifest JSON (embedded in the bundle)
+- Selected item highlighted; clicking a canvas cell places it
+- Tokens tab lists placeable NPC types (innkeeper, blacksmith, doorkeeper) and door — clicking places a sprite via `SpriteManager`; dragging a placed token repositions it via `DragController`
 
 ### LayerPanel
 
@@ -147,7 +163,7 @@ Fired when the user clicks **Save** in the builder toolbar. The builder assemble
 ```typescript
 host.dispatchEvent(new CustomEvent('scenechange', {
   bubbles: true,
-  detail: { scene: { buildings, layers, props, weather } },
+  detail: { scene: { buildings, layers, props, tokens, weather } },
 }))
 ```
 
@@ -195,7 +211,27 @@ const { data } = await supabase.from('scenes').select('scene_data').eq('slug', S
 this._sceneData = data?.scene_data ?? generateSceneFromInn(THE_INN)
 ```
 
-`generateSceneFromInn(inn: InnMap): SceneData` converts `THE_INN.walls` to the `scene_data` buildings format — the fallback if Supabase has no saved scene yet. Lives in a new `server/src/rooms/logic/scene-utils.ts`.
+`generateSceneFromInn(inn: InnMap): SceneData` converts `THE_INN.walls`, `.npcs`, and `.doors` to the full `scene_data` format — the fallback if Supabase has no saved scene yet. Lives in `server/src/rooms/logic/scene-utils.ts`.
+
+`ExploreRoom.onCreate` populates `ExploreState` NPCs and doors from `scene_data.tokens` instead of `THE_INN.npcs` / `THE_INN.doors`:
+
+```typescript
+for (const token of this._sceneData.tokens) {
+  if (token.type === 'npc') {
+    const entity = new NpcEntity()
+    entity.id = token.id; entity.name = token.name ?? ''; entity.role = token.role ?? ''
+    entity.x = token.col; entity.y = token.row
+    this.state.npcs.push(entity)
+  } else if (token.type === 'door') {
+    const entity = new DoorEntity()
+    entity.id = token.id; entity.biomeId = token.biomeId ?? ''; entity.label = token.label ?? ''
+    entity.x = token.col; entity.y = token.row
+    this.state.doors.push(entity)
+  }
+}
+```
+
+The hardcoded `THE_INN.npcs` / `THE_INN.doors` loops in `onCreate` are removed.
 
 ```typescript
 // READY handler — send alongside HERO_STATE
@@ -247,11 +283,24 @@ Both the game app and server reference `SceneData`. It is added to `packages/sha
 export interface SceneBuilding { col: number; row: number; tileId: string; instanceId?: string }
 export interface SceneLayer    { id: number; background: string }
 export interface SceneProp     { id: string; col: number; row: number; tileId: string }
+export interface SceneToken {
+  id: string
+  type: 'npc' | 'door'
+  col: number
+  row: number
+  // npc fields
+  role?: 'innkeeper' | 'blacksmith' | 'doorkeeper'
+  name?: string
+  // door fields
+  biomeId?: string
+  label?: string
+}
 
 export interface SceneData {
   buildings: SceneBuilding[]
   layers:    SceneLayer[]
   props:     SceneProp[]
+  tokens:    SceneToken[]
   weather:   string
 }
 ```
@@ -269,8 +318,6 @@ export interface SceneData {
 ## What is not in scope
 
 - Roof placement (RoofManager) — deferred
-- NPC/door placement in builder — positions stay server-side in ExploreRoom
-- DragController for moving placed props — placement-only for now
-- Player access to builder — RLS policy change only, no code work
+- Player access to builder — RLS policy change only, no code work when the time comes
 - Procedural generation — sub-project 3+
 - Multiple scenes per room instance — slug is static config for now
