@@ -9,7 +9,13 @@ import { MeshBuilder, Vector3 } from '@babylonjs/core'
 declare module 'solid-js' {
   namespace JSX {
     interface IntrinsicElements {
-      'playsets-board': { ref?: HTMLElement; walls: string; tokens: string; style?: string }
+      'playsets-board': {
+        ref?: HTMLElement
+        'attr:scene'?: string
+        'attr:entities'?: string
+        'attr:mode'?: string
+        style?: string
+      }
     }
   }
 }
@@ -25,8 +31,30 @@ export function PlaysetBoard(props: PlaysetBoardProps) {
 function ExploreBoard(props: PlaysetBoardProps) {
   let boardEl!: HTMLElement
 
-  const wallsJson = createMemo(() => JSON.stringify(props.exploreMap?.walls ?? []))
-  const tokensJson = createMemo(() => JSON.stringify(props.exploreMap?.tokens ?? []))
+  const sceneJson = createMemo(() => {
+    const walls = props.exploreMap?.walls ?? []
+    const buildings: Array<{ col: number; row: number; tileId: string }> = []
+    for (let row = 0; row < walls.length; row++) {
+      for (let col = 0; col < (walls[row]?.length ?? 0); col++) {
+        if (walls[row][col] === 1) buildings.push({ col, row, tileId: 'wall' })
+      }
+    }
+    return JSON.stringify({ buildings, layers: [], props: [], weather: 'none' })
+  })
+
+  const entitiesJson = createMemo(() => {
+    const tokens = props.exploreMap?.tokens ?? []
+    return JSON.stringify(
+      tokens.map((t) => ({
+        id: t.id,
+        type: t.type,
+        x: t.x,
+        y: t.y,
+        isMe: t.isMe,
+        label: t.label,
+      })),
+    )
+  })
 
   onMount(() => {
     function onCellClick(e: Event) {
@@ -40,8 +68,9 @@ function ExploreBoard(props: PlaysetBoardProps) {
   return (
     <playsets-board
       ref={boardEl}
-      walls={wallsJson()}
-      tokens={tokensJson()}
+      attr:scene={sceneJson()}
+      attr:entities={entitiesJson()}
+      attr:mode="explore"
       style="width:100%;height:100%;display:block;"
     />
   )

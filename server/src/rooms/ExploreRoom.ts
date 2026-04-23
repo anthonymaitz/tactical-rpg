@@ -44,6 +44,10 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       this.handleInteract(client)
     })
 
+    this.onMessage<{ id: string; x: number; y: number }>('DRAG_UPDATE', (client, message) => {
+      this.broadcast('DRAG_UPDATE', message, { except: client })
+    })
+
     this.onMessage('READY', async (client) => {
       const userData = client.userData as { heroIds?: string[] }
       const heroIds = userData?.heroIds ?? []
