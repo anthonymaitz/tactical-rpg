@@ -1,106 +1,112 @@
-// apps/game/src/screens/ExploreScreen.tsx
+import { createSignal, Show } from 'solid-js'
 import { THE_INN } from 'shared-types'
-import { useExploreRoom } from '../hooks/useExploreRoom'
+import type { Panel } from 'click-comics'
+import { createExploreRoom } from '../hooks/useExploreRoom'
 import { InnView } from './InnView'
+import { ComicPlayer } from '../components/ComicPlayer'
+import { SimpleQuestHUD, sampleContent } from 'simplequest-hud'
+
+const NPC_PANELS: Record<string, Panel[]> = {
+  innkeeper: [
+    { speaker: 'Innkeeper', text: 'Welcome to the Inn! Your heroes rest and recover here between runs.' },
+  ],
+  blacksmith: [
+    { speaker: 'Blacksmith', text: 'I can help you equip your heroes when gear equipping arrives.' },
+  ],
+  doorkeeper: [
+    { speaker: 'Doorkeeper', text: 'Ready to venture out? Walk up to the door when your party is ready.' },
+  ],
+}
+
+const DOOR_PANELS: Panel[] = [
+  { speaker: 'The Door', text: 'Biome exploration is coming in the next update.' },
+]
 
 interface ExploreScreenProps {
   token?: string | null
   heroIds?: string[]
 }
 
-export function ExploreScreen({ token = null, heroIds = [] }: ExploreScreenProps) {
-  const {
-    connected,
-    error,
-    myPosition,
-    mySessionId,
-    players,
-    npcs,
-    doors,
-    interaction,
-    move,
-    interact,
-    dismissInteraction,
-  } = useExploreRoom(token, heroIds)
+export function ExploreScreen(props: ExploreScreenProps) {
+  const state = createExploreRoom(
+    () => props.token ?? null,
+    () => props.heroIds ?? [],
+  )
+  const [showSheet, setShowSheet] = createSignal(false)
+  const contentJson = JSON.stringify(sampleContent)
 
   function handleCellClick(x: number, y: number) {
-    if (!myPosition) return
-    const isNpc = npcs.some((n) => n.x === x && n.y === y)
-    const isDoor = doors.some((d) => d.x === x && d.y === y)
-    const dist = Math.abs(myPosition.x - x) + Math.abs(myPosition.y - y)
+    const pos = state.myPosition()
+    if (!pos) return
+    const isNpc = state.npcs().some((n) => n.x === x && n.y === y)
+    const isDoor = state.doors().some((d) => d.x === x && d.y === y)
+    const dist = Math.abs(pos.x - x) + Math.abs(pos.y - y)
     if ((isNpc || isDoor) && dist === 1) {
-      interact()
+      state.interact()
     } else {
-      move({ x, y })
+      state.move({ x, y })
     }
   }
 
-  if (error) {
-    return <div style={{ padding: 20, color: 'red' }}>Connection error: {error}</div>
-  }
-
-  if (!connected) {
-    return <div style={{ padding: 20 }}>Connecting to The Inn…</div>
+  const interactionPanels = (): Panel[] | null => {
+    const ev = state.interaction()
+    if (!ev) return null
+    if (ev.type === 'npc') return NPC_PANELS[ev.role] ?? null
+    if (ev.type === 'door') return DOOR_PANELS
+    return null
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 20, background: '#111', minHeight: '100vh', color: '#fff' }}>
-      <h2 style={{ marginBottom: 16 }}>The Inn</h2>
+    <Show when={!state.error()} fallback={<div style={{ padding: '20px', color: 'red' }}>Connection error: {state.error()}</div>}>
+      <Show when={state.connected()} fallback={<div style={{ padding: '20px' }}>Connecting to The Inn…</div>}>
+        <div style={{ display: 'flex', 'flex-direction': 'column', 'align-items': 'center', padding: '20px', background: '#111', 'min-height': '100vh', color: '#fff' }}>
+          <div style={{ display: 'flex', gap: '12px', 'margin-bottom': '16px', 'align-items': 'center' }}>
+            <h2 style={{ margin: '0' }}>The Inn</h2>
+            <button
+              onClick={() => setShowSheet((v) => !v)}
+              style={{ padding: '4px 12px', 'font-size': '12px', cursor: 'pointer' }}
+            >
+              {showSheet() ? 'Hide Sheet' : 'Character Sheet'}
+            </button>
+          </div>
 
-      <div style={{ fontSize: 11, color: '#666', marginBottom: 8 }}>
-        Click an adjacent NPC or door to interact · Click a floor tile to move
-      </div>
+          <div style={{ 'font-size': '11px', color: '#666', 'margin-bottom': '8px' }}>
+            Click an adjacent NPC or door to interact · Click a floor tile to move
+          </div>
 
-      <InnView
-        map={THE_INN}
-        players={players}
-        mySessionId={mySessionId}
-        npcs={npcs}
-        doors={doors}
-        onCellClick={handleCellClick}
-      />
+          <div style={{ display: 'flex', gap: '20px', 'align-items': 'flex-start', width: '100%', 'justify-content': 'center' }}>
+            <div>
+              <InnView
+                map={THE_INN}
+                players={state.players()}
+                mySessionId={state.mySessionId()}
+                npcs={state.npcs()}
+                doors={state.doors()}
+                onCellClick={handleCellClick}
+              />
+              <Show when={state.myPosition()}>
+                <div style={{ 'margin-top': '8px', 'font-size': '11px', color: '#555', 'text-align': 'center' }}>
+                  ({state.myPosition()!.x}, {state.myPosition()!.y})
+                </div>
+              </Show>
+            </div>
 
-      {myPosition && (
-        <div style={{ marginTop: 8, fontSize: 11, color: '#555' }}>
-          ({myPosition.x}, {myPosition.y})
+            <Show when={showSheet()}>
+              <div style={{ width: '480px', 'flex-shrink': '0' }}>
+                <SimpleQuestHUD content={contentJson} />
+              </div>
+            </Show>
+          </div>
+
+          <Show when={interactionPanels()}>
+            {(panels) => (
+              <div style={{ 'margin-top': '20px', 'max-width': '480px', width: '100%' }}>
+                <ComicPlayer panels={panels()} onComplete={state.dismissInteraction} />
+              </div>
+            )}
+          </Show>
         </div>
-      )}
-
-      {interaction && (
-        <div style={{
-          marginTop: 20,
-          padding: 20,
-          background: '#1a1a2a',
-          border: '1px solid #444',
-          borderRadius: 8,
-          maxWidth: 320,
-          width: '100%',
-        }}>
-          {interaction.type === 'npc' && (
-            <>
-              <div style={{ fontWeight: 'bold', marginBottom: 8, fontSize: 16 }}>{interaction.name}</div>
-              <div style={{ fontSize: 13, color: '#aaa', marginBottom: 16 }}>
-                {interaction.role === 'innkeeper'  && 'Welcome to the Inn! Your heroes rest and recover here between runs.'}
-                {interaction.role === 'blacksmith' && 'I can help you equip your heroes when gear equipping arrives.'}
-                {interaction.role === 'doorkeeper' && 'Ready to venture out? Walk up to the door when your party is ready.'}
-              </div>
-            </>
-          )}
-          {interaction.type === 'door' && (
-            <>
-              <div style={{ fontWeight: 'bold', marginBottom: 8, fontSize: 16 }}>
-                Enter {interaction.label}?
-              </div>
-              <div style={{ fontSize: 13, color: '#aaa', marginBottom: 16 }}>
-                Biome exploration is coming in the next update.
-              </div>
-            </>
-          )}
-          <button onClick={dismissInteraction} style={{ padding: '6px 20px', cursor: 'pointer' }}>
-            Close
-          </button>
-        </div>
-      )}
-    </div>
+      </Show>
+    </Show>
   )
 }

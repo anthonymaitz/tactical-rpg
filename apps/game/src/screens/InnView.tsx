@@ -1,3 +1,4 @@
+import { For, Show } from 'solid-js'
 import type { InnMap } from 'shared-types'
 import type { PlayerState, NpcState, DoorState } from '../hooks/useExploreRoom'
 
@@ -12,59 +13,82 @@ type Props = {
   onCellClick: (x: number, y: number) => void
 }
 
-export function InnView({ map, players, mySessionId, npcs, doors, onCellClick }: Props) {
-  const npcsByPos = Object.fromEntries(npcs.map((n) => [`${n.x},${n.y}`, n]))
-  const doorsByPos = Object.fromEntries(doors.map((d) => [`${d.x},${d.y}`, d]))
-  const playersByPos = Object.fromEntries(
-    Object.entries(players).map(([sid, p]) => [`${p.x},${p.y}`, { ...p, isMe: sid === mySessionId }])
-  )
+function Cell(props: {
+  x: number; y: number; isWall: boolean
+  players: Record<string, PlayerState>; mySessionId: string | null
+  npcs: NpcState[]; doors: DoorState[]
+  onCellClick: (x: number, y: number) => void
+}) {
+  const npc = () => props.npcs.find((n) => n.x === props.x && n.y === props.y)
+  const door = () => props.doors.find((d) => d.x === props.x && d.y === props.y)
+  const player = () => {
+    const entry = Object.entries(props.players).find(([, p]) => p.x === props.x && p.y === props.y)
+    if (!entry) return undefined
+    return { ...entry[1], isMe: entry[0] === props.mySessionId }
+  }
+
+  const bg = () => {
+    if (props.isWall) return '#2a2a2a'
+    if (player()) return player()!.isMe ? '#e05555' : '#ff9800'
+    if (door()) return '#4caf50'
+    if (npc()) return '#4a7fc1'
+    return '#d4c5a0'
+  }
+
+  const label = () => {
+    if (player()) return '@'
+    if (door()) return 'D'
+    const n = npc()
+    if (n) return n.name[0]
+    return ''
+  }
+
+  const title = () => npc()?.name ?? door()?.label ?? ''
 
   return (
+    <div
+      title={title()}
+      onClick={() => !props.isWall && props.onCellClick(props.x, props.y)}
+      style={{
+        width: `${CELL_SIZE}px`,
+        height: `${CELL_SIZE}px`,
+        background: bg(),
+        border: '1px solid rgba(0,0,0,0.1)',
+        display: 'flex',
+        'align-items': 'center',
+        'justify-content': 'center',
+        'font-size': '13px',
+        'font-weight': 'bold',
+        color: (player() || door() || npc()) ? '#fff' : '#000',
+        cursor: props.isWall ? 'default' : 'pointer',
+        'user-select': 'none',
+        'box-sizing': 'border-box',
+      }}
+    >
+      {label()}
+    </div>
+  )
+}
+
+export function InnView(props: Props) {
+  return (
     <div style={{ display: 'inline-block', border: '2px solid #333' }}>
-      {map.walls.map((row, y) => (
-        <div key={y} style={{ display: 'flex' }}>
-          {row.map((isWall, x) => {
-            const key = `${x},${y}`
-            const npc = npcsByPos[key]
-            const door = doorsByPos[key]
-            const player = playersByPos[key]
-
-            let bg = isWall ? '#2a2a2a' : '#d4c5a0'
-            let label = ''
-            let color = '#000'
-            let title = ''
-
-            if (npc)    { bg = '#4a7fc1'; label = npc.name[0];  color = '#fff'; title = npc.name }
-            if (door)   { bg = '#4caf50'; label = 'D';           color = '#fff'; title = door.label }
-            if (player) { bg = player.isMe ? '#e05555' : '#ff9800'; label = '@'; color = '#fff' }
-
-            return (
-              <div
-                key={x}
-                title={title}
-                onClick={() => !isWall && onCellClick(x, y)}
-                style={{
-                  width: CELL_SIZE,
-                  height: CELL_SIZE,
-                  background: bg,
-                  border: '1px solid rgba(0,0,0,0.1)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 13,
-                  fontWeight: 'bold',
-                  color,
-                  cursor: isWall ? 'default' : 'pointer',
-                  userSelect: 'none',
-                  boxSizing: 'border-box',
-                }}
-              >
-                {label}
-              </div>
-            )
-          })}
-        </div>
-      ))}
+      <For each={props.map.walls}>
+        {(row, getY) => (
+          <div style={{ display: 'flex' }}>
+            <For each={row}>
+              {(isWall, getX) => (
+                <Cell
+                  x={getX()} y={getY()} isWall={isWall === 1}
+                  players={props.players} mySessionId={props.mySessionId}
+                  npcs={props.npcs} doors={props.doors}
+                  onCellClick={props.onCellClick}
+                />
+              )}
+            </For>
+          </div>
+        )}
+      </For>
     </div>
   )
 }

@@ -6,14 +6,16 @@
     "declaration": false,
     "declarationMap": false,
     "lib": ["ES2022", "DOM"],
-    "jsx": "react-jsx",
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "paths": {
       "shared-types": ["./packages/shared-types/src/index.ts"],
       "rules-engine": ["./packages/rules-engine/src/index.ts"],
       "click-comics": ["./packages/click-comics/src/index.ts"],
-      "playsets": ["./packages/playsets/src/index.tsx"]
+      "playsets": ["./packages/playsets/src/index.tsx"],
+      "simplequest-hud": ["./packages/simplequest-hud/src/index.tsx"]
     }
   },
   "include": [
