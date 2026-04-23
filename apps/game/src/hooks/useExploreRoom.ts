@@ -73,6 +73,8 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
         r.onMessage('HERO_STATE', (data: CharacterData) => {
           setHeroState(data)
         })
+
+        r.send('READY')
       })
       .catch((e: Error) => setError(e.message))
   }))

@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render } from '@solidjs/testing-library'
 import '@testing-library/jest-dom'
 
+vi.mock('playsets-board', () => ({}))
+
 vi.mock('@babylonjs/core', () => ({
   Engine: vi.fn().mockImplementation(() => ({
     runRenderLoop: vi.fn(),
@@ -36,9 +38,9 @@ describe('PlaysetBoard', () => {
     vi.clearAllMocks()
   })
 
-  it('renders a canvas element', () => {
+  it('renders a playsets-board element in explore mode', () => {
     render(() => <PlaysetBoard mode="explore" roomId="room1" seed={1n} />)
-    expect(document.querySelector('canvas')).not.toBeNull()
+    expect(document.querySelector('playsets-board')).not.toBeNull()
   })
 
   it('renders in combat mode with combatState', () => {

@@ -3,7 +3,7 @@ import { ExploreState, PlayerPosition, NpcEntity, DoorEntity } from '../schemas/
 import { BaseRoom } from './BaseRoom'
 import { isValidMove, isWalkable, isAdjacent } from './logic/explore-logic'
 import { heroService } from '../db/hero-service'
-import { THE_INN } from 'shared-types'
+import { THE_INN, STARTER_CLASSES } from 'shared-types'
 import type { Position } from 'shared-types'
 
 interface MoveMessage {
@@ -43,6 +43,26 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     this.onMessage('INTERACT', (client) => {
       this.handleInteract(client)
     })
+
+    this.onMessage('READY', async (client) => {
+      const userData = client.userData as { heroIds?: string[] }
+      const heroIds = userData?.heroIds ?? []
+      if (heroIds.length === 0) return
+      const hero = await heroService.getHero(heroIds[0])
+      if (!hero) return
+      const starterClass = STARTER_CLASSES.find((c) => c.name === hero.characterClass)
+      const hp = hero.maxHp > 0 ? hero.maxHp : (starterClass?.maxHp ?? 10)
+      client.send('HERO_STATE', {
+        name: hero.name,
+        class: hero.characterClass,
+        personality: hero.personality,
+        profession: '',
+        die: hero.die,
+        hp,
+        combat: 'inGeneral',
+        energy: Array(10).fill(true) as boolean[],
+      })
+    })
   }
 
   async onJoin(client: Client, options: { token?: string; heroIds?: string[] }): Promise<void> {
@@ -54,22 +74,6 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     this.state.players.set(client.sessionId, pos)
     const heroIds = options.heroIds ?? []
     client.userData = { ...(client.userData ?? {}), heroIds }
-
-    if (heroIds.length > 0) {
-      const hero = await heroService.getHero(heroIds[0])
-      if (hero) {
-        client.send('HERO_STATE', {
-          name: hero.name,
-          class: hero.characterClass,
-          personality: hero.personality,
-          profession: '',
-          die: hero.die,
-          hp: hero.maxHp,
-          combat: 'inGeneral',
-          energy: Array(10).fill(true) as boolean[],
-        })
-      }
-    }
   }
 
   onLeave(client: Client): void {
