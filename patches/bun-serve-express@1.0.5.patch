@@ -1,0 +1,13 @@
+diff --git a/build/index.js b/build/index.js
+index 1a8e8a683d758a17532e313893237fa2ad718e20..058b312b78098da175ce3cbcc2a5ed3827e106aa 100644
+--- a/build/index.js
++++ b/build/index.js
+@@ -22560,7 +22560,7 @@ class IncomingMessage extends EventEmitter2 {
+     return this;
+   }
+   async readBody() {
+-    this._rawbody = await Bun.readableStreamToText(this.req.body);
++    this._rawbody = await this.req.text();
+   }
+ }
+ 

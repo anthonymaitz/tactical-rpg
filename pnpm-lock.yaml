@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  bun-serve-express@1.0.5:
+    hash: ca9f9d96ba655a91e4e37d9e507a4a442936895750441c1e8d851b7adcaf5bbf
+    path: patches/bun-serve-express@1.0.5.patch
+
 importers:
 
   .:
@@ -1984,7 +1989,7 @@ snapshots:
     dependencies:
       '@colyseus/core': 0.15.57(@colyseus/schema@2.0.37)
       '@colyseus/schema': 2.0.37
-      bun-serve-express: 1.0.5(express@4.22.1)
+      bun-serve-express: 1.0.5(patch_hash=ca9f9d96ba655a91e4e37d9e507a4a442936895750441c1e8d851b7adcaf5bbf)(express@4.22.1)
       express: 4.22.1
     transitivePeerDependencies:
       - bufferutil
@@ -2448,7 +2453,7 @@ snapshots:
       node-releases: 2.0.37
       update-browserslist-db: 1.2.3(browserslist@4.28.2)
 
-  bun-serve-express@1.0.5(express@4.22.1):
+  bun-serve-express@1.0.5(patch_hash=ca9f9d96ba655a91e4e37d9e507a4a442936895750441c1e8d851b7adcaf5bbf)(express@4.22.1):
     dependencies:
       express: 4.22.1
       http-status-codes: 2.3.0
