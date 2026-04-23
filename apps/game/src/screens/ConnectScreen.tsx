@@ -1,5 +1,5 @@
 // apps/game/src/screens/ConnectScreen.tsx
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useHeroes } from '../hooks/useHeroes'
 import { STARTER_CLASSES, PERSONALITIES, isRecovering } from 'shared-types'
@@ -25,6 +25,21 @@ export function ConnectScreen({ onConnect }: Props) {
   const [createError, setCreateError] = useState<string | null>(null)
 
   const { heroes, loading: heroesLoading, createHero } = useHeroes(token)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        setToken(data.session.access_token)
+        setView('roster')
+      }
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        setToken(session.access_token)
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [])
 
   async function handleAuth() {
     setAuthLoading(true)

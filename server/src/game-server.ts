@@ -8,9 +8,9 @@ export function createGameServer(): Server {
   const transport = new BunWebSockets()
   const server = new Server({ transport })
 
-  server.define('explore', ExploreRoom)
-  server.define('turn', TurnRoom)
-  server.define('combat', CombatRoom)
+  server.define('ExploreRoom', ExploreRoom)
+  server.define('TurnRoom', TurnRoom)
+  server.define('CombatRoom', CombatRoom)
 
   return server
 }

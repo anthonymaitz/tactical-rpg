@@ -44,7 +44,8 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     })
   }
 
-  onJoin(client: Client, options: { token?: string; heroIds?: string[] }): void {
+  async onJoin(client: Client, options: { token?: string; heroIds?: string[] }): Promise<void> {
+    await this.verifyToken(options.token)
     const pos = new PlayerPosition()
     pos.x = THE_INN.spawnX
     pos.y = THE_INN.spawnY
