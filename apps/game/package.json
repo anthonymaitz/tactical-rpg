@@ -13,6 +13,7 @@
     "click-comics": "workspace:*",
     "colyseus.js": "^0.15.0",
     "playsets": "workspace:*",
+    "playsets-board": "workspace:*",
     "rules-engine": "workspace:*",
     "shared-types": "workspace:*",
     "simplequest-hud": "workspace:*",

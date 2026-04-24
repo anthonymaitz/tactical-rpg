@@ -117,6 +117,9 @@ importers:
       playsets:
         specifier: workspace:*
         version: link:../../packages/playsets
+      playsets-board:
+        specifier: workspace:*
+        version: link:../../../playsets experiments/apps/client
       rules-engine:
         specifier: workspace:*
         version: link:../../packages/rules-engine
