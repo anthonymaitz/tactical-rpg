@@ -62,7 +62,7 @@ export default function BuildScreen() {
         attr:scene={sceneJson()}
         attr:entities="[]"
         attr:mode="build"
-        style="width:100%;height:100%;display:block;"
+        style="width:100%;height:100%;display:block;position:relative;"
       />
     </div>
   )
