@@ -1,4 +1,4 @@
-import { createSignal, onMount } from 'solid-js'
+import { createSignal, onMount, onCleanup } from 'solid-js'
 import { useParams, useNavigate } from '@solidjs/router'
 import { token } from '../session'
 import { fetchScene, upsertScene } from '../services/scene-service'
@@ -40,13 +40,16 @@ export default function BuildScreen() {
       setSceneJson(JSON.stringify(data))
     }
 
-    boardEl.addEventListener('scenechange', async (e: Event) => {
+    async function handleSceneChange(e: Event) {
       const { scene } = (e as CustomEvent<{ scene: SceneData }>).detail
       setSaveStatus('saving')
       await upsertScene(params.slug, scene)
       setSaveStatus('saved')
       setTimeout(() => setSaveStatus('idle'), 2000)
-    })
+    }
+
+    boardEl.addEventListener('scenechange', handleSceneChange)
+    onCleanup(() => boardEl.removeEventListener('scenechange', handleSceneChange))
   })
 
   return (
