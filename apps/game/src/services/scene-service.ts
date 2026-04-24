@@ -6,7 +6,7 @@ export async function fetchScene(slug: string): Promise<SceneData | null> {
     .from('scenes')
     .select('scene_data')
     .eq('slug', slug)
-    .single()
+    .maybeSingle()
   if (error || !data) return null
   return data.scene_data as SceneData
 }

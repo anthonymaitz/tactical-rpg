@@ -24,7 +24,7 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       .from('scenes')
       .select('scene_data')
       .eq('slug', SCENE_SLUG)
-      .single()
+      .maybeSingle()
 
     if (error) {
       console.warn(`[ExploreRoom] Failed to fetch scene '${SCENE_SLUG}':`, error.message)
