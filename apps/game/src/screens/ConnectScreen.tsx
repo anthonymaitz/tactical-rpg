@@ -1,15 +1,17 @@
 import { createSignal, onMount, onCleanup, For, Show, Switch, Match } from 'solid-js'
+import { useNavigate } from '@solidjs/router'
 import { supabase } from '../lib/supabase'
 import { createHeroes } from '../hooks/useHeroes'
 import { STARTER_CLASSES, PERSONALITIES, isRecovering } from 'shared-types'
 import type { HeroRecord, Personality } from 'shared-types'
+import { setToken, setHeroIds } from '../session'
 
-type Props = { onConnect: (token: string, heroIds: string[]) => void }
 type View = 'auth' | 'roster' | 'create'
 
-export function ConnectScreen(props: Props) {
+export function ConnectScreen() {
+  const navigate = useNavigate()
   const [view, setView] = createSignal<View>('auth')
-  const [token, setToken] = createSignal<string | null>(null)
+  const [accessToken, setAccessToken] = createSignal<string | null>(null)
   const [email, setEmail] = createSignal('')
   const [password, setPassword] = createSignal('')
   const [authError, setAuthError] = createSignal<string | null>(null)
@@ -20,17 +22,17 @@ export function ConnectScreen(props: Props) {
   const [heroPersonality, setHeroPersonality] = createSignal<Personality>(PERSONALITIES[0])
   const [createError, setCreateError] = createSignal<string | null>(null)
 
-  const { heroes, loading: heroesLoading, createHero } = createHeroes(token)
+  const { heroes, loading: heroesLoading, createHero } = createHeroes(accessToken)
 
   onMount(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) {
-        setToken(data.session.access_token)
+        setAccessToken(data.session.access_token)
         setView('roster')
       }
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) setToken(session.access_token)
+      if (session) setAccessToken(session.access_token)
     })
     onCleanup(() => subscription.unsubscribe())
   })
@@ -46,9 +48,9 @@ export function ConnectScreen(props: Props) {
         setAuthLoading(false)
         return
       }
-      setToken(signUpData.session.access_token)
+      setAccessToken(signUpData.session.access_token)
     } else {
-      setToken(data.session.access_token)
+      setAccessToken(data.session.access_token)
     }
     setAuthLoading(false)
     setView('roster')
@@ -76,9 +78,11 @@ export function ConnectScreen(props: Props) {
   }
 
   function handleEnterInn() {
-    const t = token()
+    const t = accessToken()
     if (!t || selected().size === 0) return
-    props.onConnect(t, [...selected()])
+    setToken(t)
+    setHeroIds([...selected()])
+    navigate('/inn')
   }
 
   return (

@@ -6,6 +6,7 @@ import { createExploreRoom } from '../hooks/useExploreRoom'
 import { ComicPlayer } from '../components/ComicPlayer'
 import { SimpleQuestHUD, sampleContent } from 'simplequest-hud'
 import { PlaysetBoard } from 'playsets'
+import { token, heroIds } from '../session'
 
 const NPC_PANELS: Record<string, Panel[]> = {
   innkeeper: [
@@ -23,16 +24,8 @@ const DOOR_PANELS: Panel[] = [
   { speaker: 'The Door', text: 'Biome exploration is coming in the next update.' },
 ]
 
-interface ExploreScreenProps {
-  token?: string | null
-  heroIds?: string[]
-}
-
-export function ExploreScreen(props: ExploreScreenProps) {
-  const state = createExploreRoom(
-    () => props.token ?? null,
-    () => props.heroIds ?? [],
-  )
+export function ExploreScreen() {
+  const state = createExploreRoom(token, heroIds)
   const [showSheet, setShowSheet] = createSignal(false)
   const contentJson = JSON.stringify(sampleContent)
   const characterJson = () => {
