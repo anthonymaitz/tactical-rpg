@@ -8,6 +8,10 @@ describe('generateSceneFromInn', () => {
     const wallCount = THE_INN.walls.flat().filter(v => v === 1).length
     expect(scene.buildings).toHaveLength(wallCount)
     expect(scene.buildings[0]).toMatchObject({ tileId: 'wall-wood' })
+    // Verify specific wall position — top-left corner of THE_INN is a wall
+    expect(scene.buildings).toContainEqual(
+      expect.objectContaining({ col: 0, row: 0, tileId: 'wall-wood', instanceId: '0,0' })
+    )
   })
 
   it('converts npcs to npc tokens', () => {

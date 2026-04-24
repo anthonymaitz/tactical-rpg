@@ -1,5 +1,6 @@
 import type { InnMap } from './inn-map'
 
+/** col = x (left→right), row = y (top→bottom), matching InnMap.walls[row][col] */
 export interface SceneBuilding {
   col: number
   row: number
