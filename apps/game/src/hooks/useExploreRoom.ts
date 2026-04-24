@@ -44,6 +44,7 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
     setDoors([])
     setInteraction(null)
     setHeroState(null)
+    setSceneData(null)
 
     if (!t) return
 
