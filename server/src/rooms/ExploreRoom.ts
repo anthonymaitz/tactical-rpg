@@ -20,13 +20,15 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
   async onCreate(): Promise<void> {
     this.setState(new ExploreState())
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('scenes')
       .select('scene_data')
       .eq('slug', SCENE_SLUG)
       .single()
 
-    if (data?.scene_data) {
+    if (error) {
+      console.warn(`[ExploreRoom] Failed to fetch scene '${SCENE_SLUG}':`, error.message)
+    } else if (data?.scene_data) {
       this._sceneData = data.scene_data as SceneData
     }
 
