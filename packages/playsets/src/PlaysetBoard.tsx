@@ -32,6 +32,7 @@ function ExploreBoard(props: PlaysetBoardProps) {
   let boardEl!: HTMLElement
 
   const sceneJson = createMemo(() => {
+    if (props.sceneJson) return props.sceneJson
     const walls = props.exploreMap?.walls ?? []
     const buildings: Array<{ col: number; row: number; tileId: string }> = []
     for (let row = 0; row < walls.length; row++) {
@@ -61,8 +62,16 @@ function ExploreBoard(props: PlaysetBoardProps) {
       const { x, y } = (e as CustomEvent<{ x: number; y: number }>).detail
       props.onCellClick?.(x, y)
     }
+    function onTokenMove(e: Event) {
+      const { x, y } = (e as CustomEvent<{ id: string; x: number; y: number }>).detail
+      props.onCellClick?.(x, y)
+    }
     boardEl.addEventListener('cellclick', onCellClick)
-    onCleanup(() => boardEl.removeEventListener('cellclick', onCellClick))
+    boardEl.addEventListener('tokenmove', onTokenMove)
+    onCleanup(() => {
+      boardEl.removeEventListener('cellclick', onCellClick)
+      boardEl.removeEventListener('tokenmove', onTokenMove)
+    })
   })
 
   return (

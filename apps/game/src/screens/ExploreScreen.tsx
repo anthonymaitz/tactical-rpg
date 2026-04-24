@@ -1,6 +1,6 @@
-import { createSignal, Show } from 'solid-js'
-import { THE_INN } from 'shared-types'
-import type { ExploreMap, ExploreToken } from 'shared-types'
+import { createSignal, createMemo, Show } from 'solid-js'
+import { THE_INN, generateSceneFromInn } from 'shared-types'
+import type { ExploreMap, ExploreToken, SceneData } from 'shared-types'
 import type { Panel } from 'click-comics'
 import { createExploreRoom } from '../hooks/useExploreRoom'
 import { ComicPlayer } from '../components/ComicPlayer'
@@ -27,6 +27,11 @@ const DOOR_PANELS: Panel[] = [
 export function ExploreScreen() {
   const state = createExploreRoom(token, heroIds)
   const [showSheet, setShowSheet] = createSignal(false)
+  const sceneJson = createMemo(() => {
+    const sd: SceneData | null = state.sceneData()
+    if (sd) return JSON.stringify(sd)
+    return JSON.stringify(generateSceneFromInn(THE_INN))
+  })
   const contentJson = JSON.stringify(sampleContent)
   const characterJson = () => {
     const h = state.heroState()
@@ -103,6 +108,7 @@ export function ExploreScreen() {
                 mode="explore"
                 roomId="inn"
                 exploreMap={exploreMap()}
+                sceneJson={sceneJson()}
                 onCellClick={handleCellClick}
               />
             </div>

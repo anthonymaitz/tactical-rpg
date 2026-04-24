@@ -15,6 +15,7 @@ export interface BuildEvent {
 export interface PlaysetBoardProps {
   mode: PlaysetMode
   roomId: string
+  sceneJson?: string
   seed?: bigint
   combatState?: CombatState
   validMoves?: Action[]
