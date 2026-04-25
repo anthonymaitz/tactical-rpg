@@ -1,4 +1,4 @@
-export type ExploreTokenType = 'player' | 'npc' | 'door'
+export type ExploreTokenType = 'player' | 'npc' | 'door' | 'enemy'
 
 export interface ExploreToken {
   x: number

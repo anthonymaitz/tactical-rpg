@@ -7,15 +7,18 @@ import type { CharacterData } from 'simplequest-hud'
 type PlayerPosition = { x: number; y: number; characterId: string; onChange: (cb: () => void) => void }
 type NpcEntity = { id: string; name: string; role: string; x: number; y: number }
 type DoorEntity = { id: string; biomeId: string; label: string; x: number; y: number }
+type EnemyEntity = { id: string; name: string; x: number; y: number; hp: number; maxHp: number; level: number }
 type ExploreState = {
   players: { onAdd: (cb: (player: PlayerPosition, id: string) => void) => void; onRemove: (cb: (val: unknown, id: string) => void) => void }
   npcs: { onAdd: (cb: (npc: NpcEntity) => void) => void }
   doors: { onAdd: (cb: (door: DoorEntity) => void) => void }
+  enemies: { onAdd: (cb: (enemy: EnemyEntity, id: string) => void) => void; onRemove: (cb: (val: unknown, id: string) => void) => void }
 }
 
 export type PlayerState = { x: number; y: number; characterId: string }
 export type NpcState = { id: string; name: string; role: string; x: number; y: number }
 export type DoorState = { id: string; biomeId: string; label: string; x: number; y: number }
+export type EnemyState = { id: string; name: string; x: number; y: number }
 export type InteractionEvent =
   | { type: 'npc'; id: string; name: string; role: string }
   | { type: 'door'; id: string; biomeId: string; label: string }
@@ -28,6 +31,7 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
   const [players, setPlayers] = createSignal<Record<string, PlayerState>>({})
   const [npcs, setNpcs] = createSignal<NpcState[]>([])
   const [doors, setDoors] = createSignal<DoorState[]>([])
+  const [enemies, setEnemies] = createSignal<Record<string, EnemyState>>({})
   const [interaction, setInteraction] = createSignal<InteractionEvent | null>(null)
   const [encounter, setEncounter] = createSignal<EncounterEvent | null>(null)
   const [heroState, setHeroState] = createSignal<CharacterData | null>(null)
@@ -43,6 +47,7 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
     setPlayers({})
     setNpcs([])
     setDoors([])
+    setEnemies({})
     setInteraction(null)
     setEncounter(null)
     setHeroState(null)
@@ -70,6 +75,12 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
         })
         r.state.doors.onAdd((door: DoorEntity) => {
           setDoors((prev) => [...prev, { id: door.id, biomeId: door.biomeId, label: door.label, x: door.x, y: door.y }])
+        })
+        r.state.enemies.onAdd((enemy: EnemyEntity, id: string) => {
+          setEnemies((prev) => ({ ...prev, [id]: { id: enemy.id, name: enemy.name, x: enemy.x, y: enemy.y } }))
+        })
+        r.state.enemies.onRemove((_: unknown, id: string) => {
+          setEnemies((prev) => { const next = { ...prev }; delete next[id]; return next })
         })
         r.onMessage('INTERACTION_START', (data: InteractionEvent) => {
           setInteraction(data)
@@ -104,6 +115,7 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
     players,
     npcs,
     doors,
+    enemies,
     interaction,
     encounter,
     heroState,

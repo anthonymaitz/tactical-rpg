@@ -72,6 +72,12 @@ export function ExploreScreen() {
         id: d.id,
         label: d.label,
       })),
+      ...Object.values(state.enemies()).map((e) => ({
+        x: e.x, y: e.y,
+        type: 'enemy' as const,
+        id: e.id,
+        label: e.name,
+      })),
     ]
     return { walls: THE_INN.walls, tokens }
   }
