@@ -1,4 +1,4 @@
-import { createSignal, createMemo, Show } from 'solid-js'
+import { createSignal, createMemo, createEffect, Show } from 'solid-js'
 import { THE_INN, generateSceneFromInn, getReachableCells, getMoveCost, getFrontCell } from 'shared-types'
 import type { ExploreMap, ExploreToken, SceneData, AbilityDefinition, Position } from 'shared-types'
 import type { Panel } from 'click-comics'
@@ -31,7 +31,16 @@ export function ExploreScreen() {
   const state = createExploreRoom(token, heroIds)
   const navigate = useNavigate()
   const [selectedAbility, setSelectedAbility] = createSignal<AbilityDefinition | null>(null)
+  const [usedAbilityTitles, setUsedAbilityTitles] = createSignal<string[]>([])
   const [dragPos, setDragPos] = createSignal<Position | null>(null)
+
+  // Clear used abilities when it becomes this player's turn (new round)
+  createEffect(() => {
+    const cs = state.combatState()
+    if (cs && cs.turnQueue[cs.currentActorIndex] === myHeroId()) {
+      setUsedAbilityTitles([])
+    }
+  })
 
   const sceneJson = createMemo(() => {
     const sd: SceneData | null = state.sceneData()
@@ -89,8 +98,16 @@ export function ExploreScreen() {
         profession: '',
         die: actor.die,
       }
-      const round = state.combatState()?.round ?? 0
-      return JSON.stringify({ ...base, hp: actor.hp, energy: energyArray, combat: 'inCombat' as const, round })
+      const cs = state.combatState()!
+      return JSON.stringify({
+        ...base,
+        hp: actor.hp,
+        energy: energyArray,
+        combat: 'inCombat' as const,
+        round: cs.round,
+        selectedAbility: selectedAbility()?.name ?? null,
+        usedAbilities: usedAbilityTitles(),
+      })
     }
 
     if (h) return JSON.stringify(h)
@@ -144,6 +161,7 @@ export function ExploreScreen() {
     if (!actor) return
     const ability = actor.abilities.find((a) => a.name === title)
     if (!ability) return
+    // Toggle: clicking the selected ability deselects it
     setSelectedAbility((prev) => prev?.id === ability.id ? null : ability)
   }
 
@@ -176,6 +194,7 @@ export function ExploreScreen() {
         const target = Object.values(cs.actors).find((a) => a.position.x === x && a.position.y === y)
         if (target && target.isNPC && target.hp > 0) {
           state.sendAction({ type: 'ability', actorId: actor.id, ability, targetIds: [target.id] })
+          setUsedAbilityTitles((prev) => [...prev, ability.name])
           setSelectedAbility(null)
         }
       }
