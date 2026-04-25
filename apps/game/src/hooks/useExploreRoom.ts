@@ -1,7 +1,7 @@
 import { createSignal, createEffect, on, onCleanup } from 'solid-js'
 import { joinRoom } from './useGameServer'
 import type { Room } from 'colyseus.js'
-import type { Position, SceneData } from 'shared-types'
+import type { Position, SceneData, EncounterEvent } from 'shared-types'
 import type { CharacterData } from 'simplequest-hud'
 
 type PlayerPosition = { x: number; y: number; characterId: string; onChange: (cb: () => void) => void }
@@ -29,6 +29,7 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
   const [npcs, setNpcs] = createSignal<NpcState[]>([])
   const [doors, setDoors] = createSignal<DoorState[]>([])
   const [interaction, setInteraction] = createSignal<InteractionEvent | null>(null)
+  const [encounter, setEncounter] = createSignal<EncounterEvent | null>(null)
   const [heroState, setHeroState] = createSignal<CharacterData | null>(null)
   const [sceneData, setSceneData] = createSignal<SceneData | null>(null)
   const [error, setError] = createSignal<string | null>(null)
@@ -43,6 +44,7 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
     setNpcs([])
     setDoors([])
     setInteraction(null)
+    setEncounter(null)
     setHeroState(null)
     setSceneData(null)
 
@@ -78,6 +80,9 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
         r.onMessage('SCENE_STATE', (data: SceneData) => {
           setSceneData(data)
         })
+        r.onMessage('ENCOUNTER', (data: EncounterEvent) => {
+          setEncounter(data)
+        })
 
         r.send('READY')
       })
@@ -100,10 +105,12 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
     npcs,
     doors,
     interaction,
+    encounter,
     heroState,
     sceneData,
     move(destination: Position) { room?.send('MOVE', { destination }) },
     interact() { room?.send('INTERACT') },
     dismissInteraction() { setInteraction(null) },
+    dismissEncounter() { setEncounter(null) },
   }
 }
