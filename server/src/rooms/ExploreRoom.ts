@@ -95,6 +95,10 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       this.handleEndTurn(client)
     })
 
+    this.onMessage('JOIN_COMBAT', async (client) => {
+      await this.handleJoinCombat(client)
+    })
+
     this.onMessage('INTERACT', (client) => {
       this.handleInteract(client)
     })
@@ -287,16 +291,142 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     }
   }
 
-  private async handleJoinCombat(_client: Client): Promise<void> {
-    // implemented in Task 5
+  private async handleJoinCombat(client: Client): Promise<void> {
+    if (!this._combat) return
+    if (this._combatParticipants.has(client.sessionId)) return
+
+    const userData = client.userData as { heroIds?: string[] }
+    const heroId = (userData?.heroIds ?? [])[0]
+    if (!heroId) return
+
+    const hero = await heroService.getHero(heroId)
+    if (!hero) return
+
+    const starterClass = STARTER_CLASSES.find(c => c.name === hero.characterClass)
+    const current = this.state.players.get(client.sessionId)
+    if (!current) return
+
+    const heroActor: ActorState = {
+      id: hero.id,
+      name: hero.name,
+      personality: hero.personality,
+      characterClass: hero.characterClass,
+      die: hero.die,
+      hp: hero.maxHp,
+      maxHp: hero.maxHp,
+      energy: hero.maxEnergy > 0 ? hero.maxEnergy : 10,
+      maxEnergy: hero.maxEnergy > 0 ? hero.maxEnergy : 10,
+      speed: hero.speed,
+      position: { x: current.x, y: current.y },
+      statusEffects: [],
+      isNPC: false,
+      abilities: hero.abilities.length > 0 ? hero.abilities : (starterClass?.abilities ?? []),
+    }
+
+    this._combat.addActor(heroActor)
+    this._combatParticipants.add(client.sessionId)
+    this._combatHeroActorIds.set(client.sessionId, hero.id)
+    this.broadcast('COMBAT_STATE', this._combat.getCombatState())
   }
 
-  private handleCombatAction(_client: Client, _action: import('shared-types').Action): void {
-    // implemented in Task 5
+  private handleCombatAction(client: Client, action: import('shared-types').Action): void {
+    if (!this._combat) return
+    const heroId = this._combatHeroActorIds.get(client.sessionId)
+    if (!heroId) return
+
+    const cs = this._combat.getCombatState()
+    const currentActorId = cs.turnQueue[cs.currentActorIndex]
+    if (currentActorId !== heroId) return
+
+    try {
+      this._combat.handlePlayerAction(heroId, action)
+    } catch {
+      return
+    }
+
+    if (this._combat.isOver()) {
+      this.endCombat()
+      return
+    }
+
+    // Auto-advance if energy depleted
+    const updatedActor = this._combat.getCombatState().actors[heroId]
+    if (updatedActor && updatedActor.energy <= 0) {
+      this.advanceCombatTurn()
+      return
+    }
+
+    this.broadcast('COMBAT_STATE', this._combat.getCombatState())
   }
 
-  private handleEndTurn(_client: Client): void {
-    // implemented in Task 5
+  private handleEndTurn(client: Client): void {
+    if (!this._combat) return
+    const heroId = this._combatHeroActorIds.get(client.sessionId)
+    if (!heroId) return
+    const cs = this._combat.getCombatState()
+    if (cs.turnQueue[cs.currentActorIndex] !== heroId) return
+    this.advanceCombatTurn()
+  }
+
+  private advanceCombatTurn(): void {
+    if (!this._combat) return
+    this._combat.advanceTurn()
+
+    // Skip ghost actors
+    let safety = this._combat.getCombatState().turnQueue.length
+    while (safety-- > 0) {
+      const cs = this._combat.getCombatState()
+      const actorId = cs.turnQueue[cs.currentActorIndex]
+      const actor = cs.actors[actorId]
+      if (!actor?.isGhost) break
+      this._combat.advanceTurn()
+    }
+
+    const cs = this._combat.getCombatState()
+    const nextId = cs.turnQueue[cs.currentActorIndex]
+    this._combat.startTurn(nextId)
+
+    if (cs.actors[nextId]?.isNPC) {
+      this._combat.processNPCTurns()
+      if (this._combat.isOver()) {
+        this.endCombat()
+        return
+      }
+    }
+
+    this.broadcast('COMBAT_STATE', this._combat.getCombatState())
+  }
+
+  private async endCombat(): Promise<void> {
+    if (!this._combat) return
+    const winningSide = this._combat.winningSide()
+    const cs = this._combat.getCombatState()
+
+    if (winningSide === 'players') {
+      for (const enemyId of cs.activeEnemyIds) {
+        if (this.state.enemies.has(enemyId)) {
+          this.state.enemies.delete(enemyId)
+        }
+        this.enemyManager.removeEnemy(enemyId)
+      }
+      this.broadcast('COMBAT_END', { result: 'win' })
+    } else {
+      const recoveryEndsAt = new Date(Date.now() + RECOVERY_HOURS * 60 * 60 * 1000).toISOString()
+      const ghostHeroes = Object.values(cs.actors).filter(a => !a.isNPC && a.isGhost)
+      await Promise.all(
+        ghostHeroes.map(hero =>
+          supabase
+            .from('heroes')
+            .update({ recovery_ends_at: recoveryEndsAt })
+            .eq('id', hero.id)
+        )
+      )
+      this.broadcast('COMBAT_END', { result: 'lose', recoveryEndsAt })
+    }
+
+    this._combat = null
+    this._combatParticipants.clear()
+    this._combatHeroActorIds.clear()
   }
 
   private handleInteract(client: Client): void {
