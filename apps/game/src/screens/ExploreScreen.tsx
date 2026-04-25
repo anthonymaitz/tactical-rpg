@@ -200,15 +200,7 @@ export function ExploreScreen() {
       }
       return
     }
-    // Explore mode: clicks only trigger NPC/door interaction, not movement
-    const pos = state.myPosition()
-    if (!pos) return
-    const isNpc = state.npcs().some((n) => n.x === x && n.y === y)
-    const isDoor = state.doors().some((d) => d.x === x && d.y === y)
-    const dist = Math.abs(pos.x - x) + Math.abs(pos.y - y)
-    if ((isNpc || isDoor) && dist === 1) {
-      state.interact()
-    }
+    // Explore mode: clicks do nothing — drag to move, interaction triggers on landing
   }
 
   const exploreMap = (): ExploreMap => {
@@ -375,7 +367,7 @@ export function ExploreScreen() {
 
             {/* Hint text */}
             <div style={{ position: 'absolute', bottom: '10px', left: '10px', 'font-size': '11px', color: 'rgba(255,255,255,0.3)', 'z-index': '10', 'pointer-events': 'none' }}>
-              Drag to move · Click NPC or door to interact
+              Drag your token to move
             </div>
           </div>
 
