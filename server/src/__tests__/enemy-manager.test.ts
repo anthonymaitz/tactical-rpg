@@ -5,6 +5,7 @@ import type { SceneToken } from 'shared-types'
 function makeMapSchema() {
   const store = new Map<string, ReturnType<typeof makeEnemy>>()
   return {
+    get(id: string) { return store.get(id) },
     set(id: string, e: ReturnType<typeof makeEnemy>) { store.set(id, e) },
     delete(id: string) { store.delete(id) },
     forEach(cb: (v: ReturnType<typeof makeEnemy>, k: string) => void) { store.forEach(cb) },
@@ -133,5 +134,29 @@ describe('EnemyManager — removeEnemy', () => {
     expect(enemies.size).toBe(1)
     mgr.removeEnemy('e1')
     expect(enemies.size).toBe(0)
+  })
+})
+
+describe('EnemyManager — getEnemy', () => {
+  it('getEnemy returns the enemy by id', () => {
+    const enemies = makeMapSchema()
+    const tokens: SceneToken[] = [
+      { id: 'e1', type: 'enemy', col: 5, row: 3, name: 'Skeleton', level: 2 },
+    ]
+    const mgr = new EnemyManager(enemies as never, makeEnemy, tokens)
+    const result = mgr.getEnemy('e1')
+    expect(result).not.toBeUndefined()
+    expect(result!.name).toBe('Skeleton')
+    expect(result!.level).toBe(2)
+    expect(result!.id).toBe('e1')
+  })
+
+  it('getEnemy returns undefined for unknown id', () => {
+    const enemies = makeMapSchema()
+    const tokens: SceneToken[] = [
+      { id: 'e1', type: 'enemy', col: 5, row: 3, name: 'Skeleton', level: 2 },
+    ]
+    const mgr = new EnemyManager(enemies as never, makeEnemy, tokens)
+    expect(mgr.getEnemy('nope')).toBeUndefined()
   })
 })

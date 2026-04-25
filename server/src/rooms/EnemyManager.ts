@@ -12,6 +12,7 @@ interface EnemyLike {
 }
 
 interface EnemyMapLike {
+  get(id: string): EnemyLike | undefined
   set(id: string, e: EnemyLike): void
   delete(id: string): void
   forEach(cb: (v: EnemyLike, k: string) => void): void
@@ -87,6 +88,11 @@ export class EnemyManager {
       }
     })
     return found
+  }
+
+  getEnemy(id: string): { id: string; name: string; hp: number; maxHp: number; level: number } | undefined {
+    const found = this.enemies.get(id)
+    return found ? { id: found.id, name: found.name, hp: found.hp, maxHp: found.maxHp, level: found.level } : undefined
   }
 
   removeEnemy(id: string): void {

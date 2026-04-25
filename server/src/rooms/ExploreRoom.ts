@@ -3,11 +3,12 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import { ExploreState, PlayerPosition, NpcEntity, DoorEntity, EnemyEntity } from '../schemas/ExploreState'
 import { BaseRoom } from './BaseRoom'
 import { EnemyManager } from './EnemyManager'
+import { InPlaceCombatEngine } from './InPlaceCombatEngine'
 import { isValidMove, isWalkable, isAdjacent } from './logic/explore-logic'
 import { heroService } from '../db/hero-service'
 import { supabase } from '../db/supabase'
 import { THE_INN, STARTER_CLASSES, generateSceneFromInn } from 'shared-types'
-import type { Position, SceneData } from 'shared-types'
+import type { Position, SceneData, ActorState, AbilityDefinition, EncounterEvent } from 'shared-types'
 
 interface MoveMessage {
   destination: Position
@@ -15,11 +16,25 @@ interface MoveMessage {
 
 const INN_MOVE_SPEED = 3
 const SCENE_SLUG = 'inn-main'
+const RECOVERY_HOURS = 8
+
+const ENEMY_SLASH: AbilityDefinition = {
+  id: 'slash',
+  name: 'Slash',
+  energyCost: 3,
+  diceNotation: { kind: 'notation', value: '1d4' },
+  targetType: 'enemy',
+  effect: 'damage',
+  context: 'inCombat',
+}
 
 export class ExploreRoom extends BaseRoom<ExploreState> {
   private _sceneData: SceneData = generateSceneFromInn(THE_INN)
   private enemyManager!: EnemyManager
   private _realtimeChannel?: RealtimeChannel
+  private _combat: InPlaceCombatEngine | null = null
+  private _combatParticipants: Set<string> = new Set()
+  private _combatHeroActorIds: Map<string, string> = new Map()
 
   async onCreate(): Promise<void> {
     this.setState(new ExploreState())
@@ -68,8 +83,16 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
         () => { this.reloadScene() })
       .subscribe()
 
-    this.onMessage<MoveMessage>('MOVE', (client, message) => {
-      this.handleMove(client, message)
+    this.onMessage<MoveMessage>('MOVE', async (client, message) => {
+      await this.handleMove(client, message)
+    })
+
+    this.onMessage<{ action: import('shared-types').Action }>('PLAYER_ACTION', (client, msg) => {
+      this.handleCombatAction(client, msg.action)
+    })
+
+    this.onMessage('END_TURN', (client) => {
+      this.handleEndTurn(client)
     })
 
     this.onMessage('INTERACT', (client) => {
@@ -162,7 +185,7 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     this.broadcast('SCENE_STATE', this._sceneData)
   }
 
-  private handleMove(client: Client, message: MoveMessage): void {
+  private async handleMove(client: Client, message: MoveMessage): Promise<void> {
     const current = this.state.players.get(client.sessionId)
     if (!current) return
     const currentPos: Position = { x: current.x, y: current.y }
@@ -176,10 +199,104 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     }
     current.x = message.destination.x
     current.y = message.destination.y
-    const encounter = this.enemyManager.onPlayerMove(current.x, current.y)
-    if (encounter) {
-      client.send('ENCOUNTER', encounter)
+
+    if (!this._combat) {
+      const encounter = this.enemyManager.onPlayerMove(current.x, current.y)
+      if (encounter) {
+        await this.startCombat(client, encounter)
+      }
+    } else if (!this._combatParticipants.has(client.sessionId)) {
+      const cs = this._combat.getCombatState()
+      const combatEnemies = cs.activeEnemyIds.map(id => cs.actors[id]).filter(Boolean)
+      const pos = { x: current.x, y: current.y }
+      const autoJoin = combatEnemies.some(e =>
+        Math.abs(e.position.x - pos.x) + Math.abs(e.position.y - pos.y) === 1
+      )
+      if (autoJoin) {
+        await this.handleJoinCombat(client)
+      } else {
+        const allActors = Object.values(cs.actors)
+        const nearby = allActors.some(a =>
+          Math.abs(a.position.x - pos.x) + Math.abs(a.position.y - pos.y) <= 4
+        )
+        if (nearby) client.send('COMBAT_JOIN_OFFER')
+      }
     }
+  }
+
+  private async startCombat(client: Client, encounter: EncounterEvent): Promise<void> {
+    const userData = client.userData as { heroIds?: string[] }
+    const heroId = (userData?.heroIds ?? [])[0]
+    if (!heroId) return
+
+    const hero = await heroService.getHero(heroId)
+    if (!hero) return
+
+    const starterClass = STARTER_CLASSES.find(c => c.name === hero.characterClass)
+    const current = this.state.players.get(client.sessionId)
+    if (!current) return
+
+    const heroActor: ActorState = {
+      id: hero.id,
+      name: hero.name,
+      personality: hero.personality,
+      characterClass: hero.characterClass,
+      die: hero.die,
+      hp: hero.maxHp,
+      maxHp: hero.maxHp,
+      energy: hero.maxEnergy > 0 ? hero.maxEnergy : 10,
+      maxEnergy: hero.maxEnergy > 0 ? hero.maxEnergy : 10,
+      speed: hero.speed,
+      position: { x: current.x, y: current.y },
+      statusEffects: [],
+      isNPC: false,
+      abilities: hero.abilities.length > 0 ? hero.abilities : (starterClass?.abilities ?? []),
+    }
+
+    const enemyData = this.enemyManager.getEnemy(encounter.enemyId)
+    if (!enemyData) return
+
+    const enemyActor: ActorState = {
+      id: encounter.enemyId,
+      name: encounter.enemyName,
+      personality: 'wild',
+      characterClass: 'Enemy',
+      die: 'd6',
+      hp: enemyData.hp,
+      maxHp: enemyData.maxHp,
+      energy: 10,
+      maxEnergy: 10,
+      speed: 3,
+      position: { x: encounter.x, y: encounter.y },
+      statusEffects: [],
+      isNPC: true,
+      abilities: [ENEMY_SLASH],
+    }
+
+    this._combat = new InPlaceCombatEngine([heroActor, enemyActor], THE_INN.walls, enemyData.level)
+    this._combatParticipants.add(client.sessionId)
+    this._combatHeroActorIds.set(client.sessionId, hero.id)
+
+    this.broadcast('COMBAT_START', this._combat.getCombatState())
+
+    // Auto-process NPC turns if enemies go first
+    const firstId = this._combat.getCombatState().turnQueue[0]
+    if (this._combat.getCombatState().actors[firstId]?.isNPC) {
+      const results = this._combat.processNPCTurns()
+      if (results.length > 0) this.broadcast('COMBAT_STATE', this._combat.getCombatState())
+    }
+  }
+
+  private async handleJoinCombat(_client: Client): Promise<void> {
+    // implemented in Task 5
+  }
+
+  private handleCombatAction(_client: Client, _action: import('shared-types').Action): void {
+    // implemented in Task 5
+  }
+
+  private handleEndTurn(_client: Client): void {
+    // implemented in Task 5
   }
 
   private handleInteract(client: Client): void {
