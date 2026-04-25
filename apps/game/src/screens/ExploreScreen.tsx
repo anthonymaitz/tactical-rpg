@@ -200,6 +200,7 @@ export function ExploreScreen() {
       }
       return
     }
+    // Explore mode: clicks only trigger NPC/door interaction, not movement
     const pos = state.myPosition()
     if (!pos) return
     const isNpc = state.npcs().some((n) => n.x === x && n.y === y)
@@ -207,8 +208,6 @@ export function ExploreScreen() {
     const dist = Math.abs(pos.x - x) + Math.abs(pos.y - y)
     if ((isNpc || isDoor) && dist === 1) {
       state.interact()
-    } else {
-      state.move({ x, y })
     }
   }
 
@@ -376,7 +375,7 @@ export function ExploreScreen() {
 
             {/* Hint text */}
             <div style={{ position: 'absolute', bottom: '10px', left: '10px', 'font-size': '11px', color: 'rgba(255,255,255,0.3)', 'z-index': '10', 'pointer-events': 'none' }}>
-              Click NPC or door to interact · Drag or click to move
+              Drag to move · Click NPC or door to interact
             </div>
           </div>
 
