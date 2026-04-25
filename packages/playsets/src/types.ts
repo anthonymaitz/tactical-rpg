@@ -15,7 +15,7 @@ export interface BuildEvent {
 export interface Highlight {
   x: number
   y: number
-  kind: 'move' | 'ability'
+  kind: 'move' | 'ability' | 'target'
 }
 
 export interface PlaysetBoardProps {
@@ -30,6 +30,7 @@ export interface PlaysetBoardProps {
   exploreMap?: ExploreMap
   onCellClick?: (x: number, y: number) => void
   onTokenMove?: (x: number, y: number) => void
+  onTokenDrag?: (x: number, y: number) => void
   onEncounter?: (e: EncounterEvent) => void
   onAction?: (a: Action) => void
   onBuild?: (e: BuildEvent) => void

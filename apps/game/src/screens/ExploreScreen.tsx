@@ -25,11 +25,13 @@ const DOOR_PANELS: Panel[] = [
   { speaker: 'The Door', text: 'Biome exploration is coming in the next update.' },
 ]
 
+const SIDEBAR_WIDTH = 380
+
 export function ExploreScreen() {
   const state = createExploreRoom(token, heroIds)
   const navigate = useNavigate()
-  const [showSheet, setShowSheet] = createSignal(false)
   const [selectedAbility, setSelectedAbility] = createSignal<AbilityDefinition | null>(null)
+  const [dragPos, setDragPos] = createSignal<Position | null>(null)
 
   const sceneJson = createMemo(() => {
     const sd: SceneData | null = state.sceneData()
@@ -37,9 +39,15 @@ export function ExploreScreen() {
     return JSON.stringify(generateSceneFromInn(THE_INN))
   })
   const contentJson = JSON.stringify(sampleContent)
+
+  // Merge live combat HP/energy into the HUD character attribute
   const characterJson = () => {
     const h = state.heroState()
-    return h ? JSON.stringify(h) : ''
+    if (!h) return ''
+    const actor = myActor()
+    if (!actor) return JSON.stringify(h)
+    const energyArray = Array(10).fill(false).map((_, i) => i < actor.energy)
+    return JSON.stringify({ ...h, hp: actor.hp, energy: energyArray, combat: 'inCombat' as const })
   }
 
   const myHeroId = (): string | null => {
@@ -87,13 +95,29 @@ export function ExploreScreen() {
   const highlights = createMemo(() => {
     if (!state.combatState()) return []
     const ability = selectedAbility()
-    if (ability) {
-      return abilityHighlights().map((p) => ({ x: p.x, y: p.y, kind: 'ability' as const }))
-    }
-    return moveHighlights().map((p) => ({ x: p.x, y: p.y, kind: 'move' as const }))
+    const base = ability
+      ? abilityHighlights().map((p) => ({ x: p.x, y: p.y, kind: 'ability' as const }))
+      : moveHighlights().map((p) => ({ x: p.x, y: p.y, kind: 'move' as const }))
+    const dp = dragPos()
+    if (dp) return [...base, { x: dp.x, y: dp.y, kind: 'target' as const }]
+    return base
   })
 
+  function handleAbilityActivate(title: string) {
+    if (!isMyTurn()) return
+    const actor = myActor()
+    if (!actor) return
+    const ability = actor.abilities.find((a) => a.name === title)
+    if (!ability) return
+    setSelectedAbility((prev) => prev?.id === ability.id ? null : ability)
+  }
+
+  function handleTokenDrag(x: number, y: number) {
+    setDragPos({ x, y })
+  }
+
   function handleTokenMove(x: number, y: number) {
+    setDragPos(null)
     const cs = state.combatState()
     if (cs && isMyTurn()) {
       const actor = myActor()
@@ -122,7 +146,6 @@ export function ExploreScreen() {
       }
       return
     }
-    // explore logic
     const pos = state.myPosition()
     if (!pos) return
     const isNpc = state.npcs().some((n) => n.x === x && n.y === y)
@@ -189,9 +212,10 @@ export function ExploreScreen() {
   return (
     <Show when={!state.error()} fallback={<div style={{ padding: '20px', color: 'red' }}>Connection error: {state.error()}</div>}>
       <Show when={state.connected()} fallback={<div style={{ padding: '20px', background: '#111', color: '#fff', 'min-height': '100vh' }}>Connecting to The Inn…</div>}>
-        <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
-          {/* Full-screen board */}
-          <div style={{ position: 'absolute', inset: '0' }}>
+        <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden' }}>
+
+          {/* Board — fills remaining space left of sidebar */}
+          <div style={{ position: 'relative', flex: '1 1 0', 'min-width': 0 }}>
             <PlaysetBoard
               mode="explore"
               roomId="inn"
@@ -202,159 +226,160 @@ export function ExploreScreen() {
               highlights={highlights()}
               onCellClick={handleCellClick}
               onTokenMove={handleTokenMove}
+              onTokenDrag={handleTokenDrag}
             />
-          </div>
 
-          {/* Top-right HUD button */}
-          <div style={{ position: 'absolute', top: '12px', right: '12px', 'z-index': '10', display: 'flex', gap: '8px' }}>
-            <button
-              onClick={() => setShowSheet((v) => !v)}
-              style={{ padding: '6px 14px', 'font-size': '12px', cursor: 'pointer', background: 'rgba(10,15,10,0.85)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', 'border-radius': '4px' }}
-            >
-              {showSheet() ? 'Hide Sheet' : 'Character Sheet'}
-            </button>
-          </div>
+            {/* Turn indicator */}
+            <Show when={currentCombatActor()}>
+              {(current) => (
+                <div style={{
+                  position: 'absolute', top: '12px', left: '12px', 'z-index': '10',
+                  background: 'rgba(5,10,5,0.85)', border: '1px solid rgba(255,255,255,0.1)',
+                  'border-radius': '6px', padding: '6px 12px', 'font-size': '11px', color: '#aaa',
+                }}>
+                  <span>{'⚔'} {current().name}{'\''}s turn {'·'} Round {state.combatState()?.round ?? 0}</span>
+                </div>
+              )}
+            </Show>
 
-          {/* Character sheet slide-in panel */}
-          <Show when={showSheet()}>
-            <div style={{ position: 'absolute', top: '0', right: '0', bottom: '0', width: '480px', 'z-index': '10', overflow: 'auto', background: 'rgba(10,15,10,0.95)', 'border-left': '1px solid rgba(255,255,255,0.08)' }}>
-              <SimpleQuestHUD content={contentJson} character={characterJson()} />
-            </div>
-          </Show>
-
-          {/* Turn indicator — visible to all during combat */}
-          <Show when={currentCombatActor()}>
-            {(current) => (
+            {/* Action error toast */}
+            <Show when={state.actionError()}>
               <div style={{
-                position: 'absolute', top: '12px', left: '12px', 'z-index': '10',
-                background: 'rgba(5,10,5,0.85)', border: '1px solid rgba(255,255,255,0.1)',
-                'border-radius': '6px', padding: '6px 12px', 'font-size': '11px', color: '#aaa',
+                position: 'absolute', bottom: '60px', left: '50%', transform: 'translateX(-50%)',
+                'z-index': '30', background: 'rgba(180,40,40,0.92)', color: '#fcc',
+                'border-radius': '6px', padding: '8px 18px', 'font-size': '12px',
+                border: '1px solid rgba(255,100,100,0.3)', 'pointer-events': 'none',
               }}>
-                <span>{'⚔'} {current().name}{'\''}s turn {'·'} Round {state.combatState()?.round ?? 0}</span>
+                {state.actionError()}
               </div>
-            )}
-          </Show>
+            </Show>
 
-          {/* Combat action bar — visible only to current actor on their turn */}
-          <Show when={state.combatState() && isMyTurn()}>
-            <div style={{
-              position: 'absolute', bottom: '60px', left: '50%', transform: 'translateX(-50%)',
-              display: 'flex', gap: '8px', 'z-index': '10', 'align-items': 'center',
-              background: 'rgba(5,10,5,0.9)', border: '1px solid rgba(255,255,255,0.1)',
-              'border-radius': '8px', padding: '8px 14px',
-            }}>
-              <span style={{ 'font-size': '11px', color: '#fa0', 'margin-right': '6px' }}>
-                {'⚡'} {myActor()?.energy ?? 0}/{myActor()?.maxEnergy ?? 0}
-              </span>
-              {(myActor()?.abilities ?? []).map((ability) => (
-                <button
-                  onClick={() => setSelectedAbility((a) => a?.id === ability.id ? null : ability)}
-                  style={{
-                    padding: '5px 10px', 'font-size': '11px',
-                    background: selectedAbility()?.id === ability.id ? 'rgba(80,160,80,0.3)' : 'rgba(10,20,10,0.85)',
-                    color: (myActor()?.energy ?? 0) >= ability.energyCost ? '#6f6' : '#444',
-                    border: selectedAbility()?.id === ability.id ? '1px solid #6f6' : '1px solid rgba(255,255,255,0.1)',
-                    'border-radius': '4px',
-                    cursor: (myActor()?.energy ?? 0) >= ability.energyCost ? 'pointer' : 'not-allowed',
-                  }}
-                  disabled={(myActor()?.energy ?? 0) < ability.energyCost}
-                >
-                  {ability.name} {'⚡'}{ability.energyCost}
-                </button>
-              ))}
-              <button
-                onClick={() => { setSelectedAbility(null); state.endTurn() }}
-                style={{
-                  padding: '5px 10px', 'font-size': '11px', cursor: 'pointer',
-                  background: 'rgba(10,10,20,0.85)', color: '#aaf',
-                  border: '1px solid rgba(150,150,255,0.2)', 'border-radius': '4px',
-                }}
-              >
-                End Turn
-              </button>
-            </div>
-          </Show>
-
-          {/* Join combat offer */}
-          <Show when={state.joinOffer()}>
-            <div style={{
-              position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
-              'z-index': '20', background: 'rgba(5,10,5,0.95)', border: '1px solid rgba(255,200,50,0.3)',
-              'border-radius': '8px', padding: '20px 28px', 'text-align': 'center',
-            }}>
-              <div style={{ color: '#fa0', 'font-size': '14px', 'margin-bottom': '12px' }}>A battle is nearby!</div>
-              <div style={{ display: 'flex', gap: '8px', 'justify-content': 'center' }}>
-                <button onClick={state.joinCombat} style={{ padding: '6px 16px', background: 'rgba(80,160,80,0.2)', color: '#6f6', border: '1px solid #3a5a3a', 'border-radius': '4px', cursor: 'pointer' }}>Join</button>
-                <button onClick={state.dismissJoinOffer} style={{ padding: '6px 16px', background: 'rgba(10,10,10,0.5)', color: '#666', border: '1px solid #333', 'border-radius': '4px', cursor: 'pointer' }}>Ignore</button>
+            {/* Join combat offer */}
+            <Show when={state.joinOffer()}>
+              <div style={{
+                position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
+                'z-index': '20', background: 'rgba(5,10,5,0.95)', border: '1px solid rgba(255,200,50,0.3)',
+                'border-radius': '8px', padding: '20px 28px', 'text-align': 'center',
+              }}>
+                <div style={{ color: '#fa0', 'font-size': '14px', 'margin-bottom': '12px' }}>A battle is nearby!</div>
+                <div style={{ display: 'flex', gap: '8px', 'justify-content': 'center' }}>
+                  <button onClick={state.joinCombat} style={{ padding: '6px 16px', background: 'rgba(80,160,80,0.2)', color: '#6f6', border: '1px solid #3a5a3a', 'border-radius': '4px', cursor: 'pointer' }}>Join</button>
+                  <button onClick={state.dismissJoinOffer} style={{ padding: '6px 16px', background: 'rgba(10,10,10,0.5)', color: '#666', border: '1px solid #333', 'border-radius': '4px', cursor: 'pointer' }}>Ignore</button>
+                </div>
               </div>
-            </div>
-          </Show>
+            </Show>
 
-          {/* Combat results overlay */}
-          <Show when={state.combatResult()}>
-            <div style={{
-              position: 'absolute', inset: '0', 'z-index': '30', background: 'rgba(0,0,0,0.7)',
-              display: 'flex', 'align-items': 'center', 'justify-content': 'center',
-            }}>
-              <div style={{ background: 'rgba(5,10,5,0.97)', border: '1px solid rgba(255,255,255,0.1)', 'border-radius': '10px', padding: '32px 40px', 'text-align': 'center', 'max-width': '360px' }}>
-                <Show when={state.combatResult() === 'win'}>
-                  <div style={{ color: '#6f6', 'font-size': '22px', 'margin-bottom': '8px' }}>Victory!</div>
-                  <div style={{ color: '#888', 'font-size': '13px', 'margin-bottom': '20px' }}>The enemy has been defeated.</div>
-                  <button onClick={state.dismissCombatResult} style={{ padding: '8px 24px', background: 'rgba(80,160,80,0.2)', color: '#6f6', border: '1px solid #3a5a3a', 'border-radius': '4px', cursor: 'pointer' }}>Continue</button>
-                </Show>
-                <Show when={state.combatResult() === 'lose'}>
-                  <div style={{ color: '#f66', 'font-size': '22px', 'margin-bottom': '8px' }}>Defeated</div>
-                  <div style={{ color: '#888', 'font-size': '13px', 'margin-bottom': '8px' }}>Your heroes need time to recover.</div>
-                  <Show when={state.recoveryEndsAt()}>
-                    <div style={{ color: '#666', 'font-size': '11px', 'margin-bottom': '16px' }}>
-                      Available again: {new Date(state.recoveryEndsAt()!).toLocaleTimeString()}
-                    </div>
+            {/* Combat results overlay */}
+            <Show when={state.combatResult()}>
+              <div style={{
+                position: 'absolute', inset: '0', 'z-index': '30', background: 'rgba(0,0,0,0.7)',
+                display: 'flex', 'align-items': 'center', 'justify-content': 'center',
+              }}>
+                <div style={{ background: 'rgba(5,10,5,0.97)', border: '1px solid rgba(255,255,255,0.1)', 'border-radius': '10px', padding: '32px 40px', 'text-align': 'center', 'max-width': '360px' }}>
+                  <Show when={state.combatResult() === 'win'}>
+                    <div style={{ color: '#6f6', 'font-size': '22px', 'margin-bottom': '8px' }}>Victory!</div>
+                    <div style={{ color: '#888', 'font-size': '13px', 'margin-bottom': '20px' }}>The enemy has been defeated.</div>
+                    <button onClick={state.dismissCombatResult} style={{ padding: '8px 24px', background: 'rgba(80,160,80,0.2)', color: '#6f6', border: '1px solid #3a5a3a', 'border-radius': '4px', cursor: 'pointer' }}>Continue</button>
                   </Show>
-                  <button
-                    onClick={() => { state.dismissCombatResult(); navigate('/') }}
-                    style={{ padding: '8px 24px', background: 'rgba(160,50,50,0.2)', color: '#f88', border: '1px solid #5a3a3a', 'border-radius': '4px', cursor: 'pointer' }}
-                  >
-                    Return to Roster
-                  </button>
-                </Show>
+                  <Show when={state.combatResult() === 'lose'}>
+                    <div style={{ color: '#f66', 'font-size': '22px', 'margin-bottom': '8px' }}>Defeated</div>
+                    <div style={{ color: '#888', 'font-size': '13px', 'margin-bottom': '8px' }}>Your heroes need time to recover.</div>
+                    <Show when={state.recoveryEndsAt()}>
+                      <div style={{ color: '#666', 'font-size': '11px', 'margin-bottom': '16px' }}>
+                        Available again: {new Date(state.recoveryEndsAt()!).toLocaleTimeString()}
+                      </div>
+                    </Show>
+                    <button
+                      onClick={() => { state.dismissCombatResult(); navigate('/') }}
+                      style={{ padding: '8px 24px', background: 'rgba(160,50,50,0.2)', color: '#f88', border: '1px solid #5a3a3a', 'border-radius': '4px', cursor: 'pointer' }}
+                    >
+                      Return to Roster
+                    </button>
+                  </Show>
+                </div>
               </div>
+            </Show>
+
+            {/* Interaction comic panel */}
+            <Show when={interactionPanels()}>
+              {(panels) => (
+                <div style={{ position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', 'max-width': '480px', width: '100%', 'z-index': '10' }}>
+                  <ComicPlayer panels={panels()} onComplete={state.dismissInteraction} />
+                </div>
+              )}
+            </Show>
+
+            {/* Encounter comic panel */}
+            <Show when={encounterPanels()}>
+              {(panels) => (
+                <div style={{ position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', 'max-width': '480px', width: '100%', 'z-index': '10' }}>
+                  <ComicPlayer panels={panels()} onComplete={state.dismissEncounter} />
+                </div>
+              )}
+            </Show>
+
+            {/* Hint text */}
+            <div style={{ position: 'absolute', bottom: '10px', left: '10px', 'font-size': '11px', color: 'rgba(255,255,255,0.3)', 'z-index': '10', 'pointer-events': 'none' }}>
+              Click NPC or door to interact · Drag or click to move
             </div>
-          </Show>
-
-          {/* Interaction comic panel — bottom center overlay */}
-          <Show when={interactionPanels()}>
-            {(panels) => (
-              <div style={{ position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', 'max-width': '480px', width: '100%', 'z-index': '10' }}>
-                <ComicPlayer panels={panels()} onComplete={state.dismissInteraction} />
-              </div>
-            )}
-          </Show>
-
-          {/* Encounter comic panel — bottom center overlay */}
-          <Show when={encounterPanels()}>
-            {(panels) => (
-              <div style={{ position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', 'max-width': '480px', width: '100%', 'z-index': '10' }}>
-                <ComicPlayer panels={panels()} onComplete={state.dismissEncounter} />
-              </div>
-            )}
-          </Show>
-
-          {/* Action error toast */}
-          <Show when={state.actionError()}>
-            <div style={{
-              position: 'absolute', bottom: '100px', left: '50%', transform: 'translateX(-50%)',
-              'z-index': '30', background: 'rgba(180,40,40,0.92)', color: '#fcc',
-              'border-radius': '6px', padding: '8px 18px', 'font-size': '12px',
-              border: '1px solid rgba(255,100,100,0.3)', 'pointer-events': 'none',
-            }}>
-              {state.actionError()}
-            </div>
-          </Show>
-
-          {/* Hint text — bottom left */}
-          <div style={{ position: 'absolute', bottom: '10px', left: '10px', 'font-size': '11px', color: 'rgba(255,255,255,0.3)', 'z-index': '10', 'pointer-events': 'none' }}>
-            Click adjacent NPC or door to interact · Click floor to move
           </div>
+
+          {/* Right sidebar — SimpleQuest HUD + combat controls */}
+          <div style={{
+            width: `${SIDEBAR_WIDTH}px`,
+            'flex-shrink': '0',
+            height: '100vh',
+            overflow: 'auto',
+            background: 'rgba(8,12,8,0.97)',
+            'border-left': '1px solid rgba(255,255,255,0.07)',
+            display: 'flex',
+            'flex-direction': 'column',
+          }}>
+            {/* SimpleQuest HUD — live character status + ability cards */}
+            <div style={{ flex: '1 1 0', overflow: 'auto' }}>
+              <SimpleQuestHUD
+                content={contentJson}
+                character={characterJson()}
+                onAbilityActivate={handleAbilityActivate}
+              />
+            </div>
+
+            {/* Combat controls — only shown during combat on player's turn */}
+            <Show when={state.combatState() && isMyTurn()}>
+              <div style={{
+                'flex-shrink': '0',
+                padding: '10px 14px',
+                'border-top': '1px solid rgba(255,255,255,0.07)',
+                display: 'flex',
+                'flex-direction': 'column',
+                gap: '8px',
+              }}>
+                <Show when={selectedAbility()}>
+                  <div style={{ 'font-size': '11px', color: '#6f6', padding: '4px 0' }}>
+                    {'▶'} {selectedAbility()!.name} selected — click an enemy to attack
+                    <button
+                      onClick={() => setSelectedAbility(null)}
+                      style={{ 'margin-left': '8px', background: 'none', border: 'none', color: '#888', cursor: 'pointer', 'font-size': '11px' }}
+                    >
+                      cancel
+                    </button>
+                  </div>
+                </Show>
+                <button
+                  onClick={() => { setSelectedAbility(null); state.endTurn() }}
+                  style={{
+                    padding: '8px', 'font-size': '12px', cursor: 'pointer',
+                    background: 'rgba(10,10,30,0.9)', color: '#aaf',
+                    border: '1px solid rgba(150,150,255,0.25)', 'border-radius': '5px',
+                    'font-weight': '600',
+                  }}
+                >
+                  End Turn
+                </button>
+              </div>
+            </Show>
+          </div>
+
         </div>
       </Show>
     </Show>

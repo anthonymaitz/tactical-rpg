@@ -286,8 +286,12 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     // Auto-process NPC turns if enemies go first
     const firstId = this._combat.getCombatState().turnQueue[0]
     if (this._combat.getCombatState().actors[firstId]?.isNPC) {
-      const results = this._combat.processNPCTurns()
-      if (results.length > 0) this.broadcast('COMBAT_STATE', this._combat.getCombatState())
+      this._combat.processNPCTurns()
+      // Restore energy for the player who is now up after NPC turns
+      const cs = this._combat.getCombatState()
+      const playerId = cs.turnQueue[cs.currentActorIndex]
+      if (playerId) this._combat.startTurn(playerId)
+      this.broadcast('COMBAT_STATE', this._combat.getCombatState())
     }
   }
 
@@ -393,6 +397,10 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
         this.endCombat()
         return
       }
+      // Restore energy for the player who is now up after NPC turns
+      const afterNPC = this._combat.getCombatState()
+      const playerId = afterNPC.turnQueue[afterNPC.currentActorIndex]
+      if (playerId) this._combat.startTurn(playerId)
     }
 
     this.broadcast('COMBAT_STATE', this._combat.getCombatState())
