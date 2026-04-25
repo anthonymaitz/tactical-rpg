@@ -1,7 +1,7 @@
 import { createSignal, createEffect, on, onCleanup } from 'solid-js'
 import { joinRoom } from './useGameServer'
 import type { Room } from 'colyseus.js'
-import type { Position, SceneData, EncounterEvent } from 'shared-types'
+import type { Position, SceneData, EncounterEvent, CombatState, Action } from 'shared-types'
 import type { CharacterData } from 'simplequest-hud'
 import { supabase } from '../lib/supabase'
 
@@ -38,6 +38,10 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
   const [heroState, setHeroState] = createSignal<CharacterData | null>(null)
   const [sceneData, setSceneData] = createSignal<SceneData | null>(null)
   const [error, setError] = createSignal<string | null>(null)
+  const [combatState, setCombatState] = createSignal<CombatState | null>(null)
+  const [combatResult, setCombatResult] = createSignal<'win' | 'lose' | null>(null)
+  const [recoveryEndsAt, setRecoveryEndsAt] = createSignal<string | null>(null)
+  const [joinOffer, setJoinOffer] = createSignal(false)
 
   createEffect(on([token, heroIds] as const, ([t, ids]) => {
     room?.leave()
@@ -53,6 +57,10 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
     setEncounter(null)
     setHeroState(null)
     setSceneData(null)
+    setCombatState(null)
+    setCombatResult(null)
+    setRecoveryEndsAt(null)
+    setJoinOffer(false)
 
     if (!t) return
 
@@ -97,6 +105,20 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
         r.onMessage('ENCOUNTER', (data: EncounterEvent) => {
           setEncounter(data)
         })
+        r.onMessage('COMBAT_START', (data: CombatState) => {
+          setCombatState(data)
+        })
+        r.onMessage('COMBAT_STATE', (data: CombatState) => {
+          setCombatState(data)
+        })
+        r.onMessage('COMBAT_END', (data: { result: 'win' | 'lose'; recoveryEndsAt?: string }) => {
+          setCombatResult(data.result)
+          setRecoveryEndsAt(data.recoveryEndsAt ?? null)
+          if (data.result === 'win') setCombatState(null)
+        })
+        r.onMessage('COMBAT_JOIN_OFFER', () => {
+          setJoinOffer(true)
+        })
 
         r.send('READY')
       })
@@ -123,9 +145,18 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
     encounter,
     heroState,
     sceneData,
+    combatState,
+    combatResult,
+    recoveryEndsAt,
+    joinOffer,
     move(destination: Position) { room?.send('MOVE', { destination }) },
     interact() { room?.send('INTERACT') },
     dismissInteraction() { setInteraction(null) },
     dismissEncounter() { setEncounter(null) },
+    sendAction(action: Action) { room?.send('PLAYER_ACTION', { action }) },
+    endTurn() { room?.send('END_TURN') },
+    joinCombat() { setJoinOffer(false); room?.send('JOIN_COMBAT') },
+    dismissJoinOffer() { setJoinOffer(false) },
+    dismissCombatResult() { setCombatResult(null); setRecoveryEndsAt(null) },
   }
 }
