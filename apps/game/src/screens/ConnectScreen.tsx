@@ -5,13 +5,11 @@ import { createHeroes } from '../hooks/useHeroes'
 import { isRecovering } from 'shared-types'
 import type { HeroRecord, Personality, Profession } from 'shared-types'
 import { setToken, setHeroIds } from '../session'
-import { SimpleQuestHUD, sampleContent } from 'simplequest-hud'
+import { SimpleQuestHUD } from 'simplequest-hud'
 import type { CharacterChangeData } from 'simplequest-hud'
+import { useContent } from '../hooks/useContent'
 
 type View = 'auth' | 'roster' | 'create'
-
-// SimpleQuest is the source of truth for classes, professions, and abilities
-const createContent = JSON.stringify(sampleContent)
 
 export function ConnectScreen() {
   const navigate = useNavigate()
@@ -28,6 +26,7 @@ export function ConnectScreen() {
   const [createError, setCreateError] = createSignal<string | null>(null)
 
   const { heroes, loading: heroesLoading, createHero } = createHeroes(accessToken)
+  const content = useContent()
 
   onMount(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -128,7 +127,7 @@ export function ConnectScreen() {
         }}>
           <div style={{ flex: '1', 'min-height': '0', overflow: 'hidden' }}>
             <SimpleQuestHUD
-              content={createContent}
+              content={JSON.stringify(content() ?? {})}
               onCharacterChange={(data) => setCreateCharacter(data)}
             />
           </div>

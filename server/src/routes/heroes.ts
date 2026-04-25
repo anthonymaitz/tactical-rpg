@@ -1,7 +1,7 @@
 // server/src/routes/heroes.ts
 import { Hono } from 'hono'
 import { heroService } from '../db/hero-service'
-import { STARTER_CLASSES, PERSONALITIES, PROFESSIONS } from 'shared-types'
+import { getSqClass, getSqClassAbilities, getSqContent } from '../db/sq-content'
 import { supabase } from '../db/supabase'
 import { verifySupabaseJWT } from '../auth'
 
@@ -40,20 +40,37 @@ heroRoutes.post('/', async (c) => {
   const userId = c.get('userId') as string
   const body = await c.req.json<{ name: string; className: string; personality: string; profession: string }>()
 
-  const starterClass = STARTER_CLASSES.find((sc) => sc.name === body.className)
-  if (!starterClass) return c.json({ error: `Unknown class: ${body.className}` }, 400)
   if (!body.name?.trim()) return c.json({ error: 'name is required' }, 400)
-  if (!PERSONALITIES.includes(body.personality as typeof PERSONALITIES[number])) {
+
+  const [sqClass, sqAbilities, content] = await Promise.all([
+    getSqClass(body.className),
+    getSqClassAbilities(body.className),
+    getSqContent(),
+  ])
+
+  if (!sqClass) return c.json({ error: `Unknown class: ${body.className}` }, 400)
+  if (!content.personalities.includes(body.personality)) {
     return c.json({ error: `Invalid personality: ${body.personality}` }, 400)
   }
-  if (!PROFESSIONS.includes(body.profession as typeof PROFESSIONS[number])) {
+  if (!content.professions.includes(body.profession)) {
     return c.json({ error: `Invalid profession: ${body.profession}` }, 400)
   }
+
+  const abilities = sqAbilities.map((a) => ({
+    id: a.id,
+    name: a.title,
+    energyCost: a.energyCost ?? 1,
+    diceNotation: a.diceNotation ?? { kind: 'actor' },
+    targetType: a.targetType ?? 'enemy',
+    effect: a.effect ?? 'damage',
+    context: a.context,
+    statusEffect: a.statusEffects ?? undefined,
+  })) as import('shared-types').AbilityDefinition[]
 
   const hero = await heroService.createHero(
     userId,
     body.name.trim(),
-    starterClass,
+    { className: sqClass.id, die: sqClass.die, maxHp: sqClass.maxHp, maxEnergy: sqClass.maxEnergy, speed: sqClass.speed, abilities },
     body.personality as Parameters<typeof heroService.createHero>[3],
     body.profession
   )

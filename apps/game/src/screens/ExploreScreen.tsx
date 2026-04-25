@@ -4,7 +4,8 @@ import type { ExploreMap, ExploreToken, SceneData, AbilityDefinition, Position }
 import type { Panel } from 'click-comics'
 import { createExploreRoom } from '../hooks/useExploreRoom'
 import { ComicPlayer } from '../components/ComicPlayer'
-import { SimpleQuestHUD, sampleContent } from 'simplequest-hud'
+import { SimpleQuestHUD } from 'simplequest-hud'
+import { useContent } from '../hooks/useContent'
 import { PlaysetBoard } from 'playsets'
 import { token, heroIds } from '../session'
 import { useNavigate } from '@solidjs/router'
@@ -47,7 +48,8 @@ export function ExploreScreen() {
     if (sd) return JSON.stringify(sd)
     return JSON.stringify(generateSceneFromInn(THE_INN))
   })
-  const contentJson = JSON.stringify(sampleContent)
+  const sqContent = useContent()
+  const contentJson = () => JSON.stringify(sqContent() ?? {})
 
   const myHeroId = (): string | null => {
     const cs = state.combatState()
@@ -409,7 +411,7 @@ export function ExploreScreen() {
             {/* SimpleQuest HUD — live character status + ability cards; scrolls internally */}
             <div style={{ flex: '1 1 0', overflow: 'hidden', display: 'flex', 'flex-direction': 'column', 'min-height': '0' }}>
               <SimpleQuestHUD
-                content={contentJson}
+                content={contentJson()}
                 character={characterJson()}
                 onAbilityActivate={handleAbilityActivate}
               />

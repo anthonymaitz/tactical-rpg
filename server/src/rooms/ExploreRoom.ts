@@ -7,7 +7,7 @@ import { InPlaceCombatEngine } from './InPlaceCombatEngine'
 import { isValidMove, isWalkable, isAdjacent, getFrontCell, getMovementDirection } from './logic/explore-logic'
 import { heroService } from '../db/hero-service'
 import { supabase } from '../db/supabase'
-import { THE_INN, STARTER_CLASSES, generateSceneFromInn } from 'shared-types'
+import { THE_INN, generateSceneFromInn } from 'shared-types'
 import type { Position, SceneData, ActorState, AbilityDefinition, EncounterEvent } from 'shared-types'
 
 interface MoveMessage {
@@ -124,8 +124,7 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       if (heroIds.length === 0) return
       const hero = await heroService.getHero(heroIds[0])
       if (!hero) return
-      const starterClass = STARTER_CLASSES.find((c) => c.name === hero.characterClass)
-      const hp = hero.maxHp > 0 ? hero.maxHp : (starterClass?.maxHp ?? 10)
+      const hp = hero.maxHp > 0 ? hero.maxHp : 10
       client.send('HERO_STATE', {
         name: hero.name,
         class: hero.characterClass,
@@ -265,7 +264,6 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     const hero = await heroService.getHero(heroId)
     if (!hero) return
 
-    const starterClass = STARTER_CLASSES.find(c => c.name === hero.characterClass)
     const current = this.state.players.get(client.sessionId)
     if (!current) return
 
@@ -283,7 +281,7 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       position: { x: current.x, y: current.y },
       statusEffects: [],
       isNPC: false,
-      abilities: hero.abilities.length > 0 ? hero.abilities : (starterClass?.abilities ?? []),
+      abilities: hero.abilities,
     }
 
     const enemyData = this.enemyManager.getEnemy(encounter.enemyId)
@@ -335,7 +333,6 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     const hero = await heroService.getHero(heroId)
     if (!hero) return
 
-    const starterClass = STARTER_CLASSES.find(c => c.name === hero.characterClass)
     const current = this.state.players.get(client.sessionId)
     if (!current) return
 
@@ -353,7 +350,7 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       position: { x: current.x, y: current.y },
       statusEffects: [],
       isNPC: false,
-      abilities: hero.abilities.length > 0 ? hero.abilities : (starterClass?.abilities ?? []),
+      abilities: hero.abilities,
     }
 
     this._combat.addActor(heroActor)
