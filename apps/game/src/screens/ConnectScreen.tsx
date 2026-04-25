@@ -2,21 +2,16 @@ import { createSignal, onMount, onCleanup, For, Show, Switch, Match } from 'soli
 import { useNavigate } from '@solidjs/router'
 import { supabase } from '../lib/supabase'
 import { createHeroes } from '../hooks/useHeroes'
-import { STARTER_CLASSES, PERSONALITIES, PROFESSIONS, isRecovering } from 'shared-types'
-import type { HeroRecord, Personality } from 'shared-types'
+import { isRecovering } from 'shared-types'
+import type { HeroRecord, Personality, Profession } from 'shared-types'
 import { setToken, setHeroIds } from '../session'
 import { SimpleQuestHUD, sampleContent } from 'simplequest-hud'
 import type { CharacterChangeData } from 'simplequest-hud'
 
 type View = 'auth' | 'roster' | 'create'
 
-// Content for the create screen uses server-authoritative class/personality/profession names
-const createContent = JSON.stringify({
-  ...sampleContent,
-  classes: STARTER_CLASSES.map((c) => c.name),
-  personalities: [...PERSONALITIES],
-  professions: [...PROFESSIONS],
-})
+// SimpleQuest is the source of truth for classes, professions, and abilities
+const createContent = JSON.stringify(sampleContent)
 
 export function ConnectScreen() {
   const navigate = useNavigate()
@@ -78,7 +73,7 @@ export function ConnectScreen() {
         name: c.name.trim(),
         className: c.class,
         personality: c.personality as Personality,
-        profession: c.profession,
+        profession: c.profession as Profession,
       })
       setView('roster')
     } catch (e) {

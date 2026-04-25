@@ -2,8 +2,14 @@ import type { AbilityDefinition } from './ability-types'
 
 export type Die = 'd4' | 'd6' | 'd8' | 'd10' | 'd12' | 'd20'
 export type Personality = 'passionate' | 'calculating' | 'wild' | 'selfish' | 'righteous'
-export type Profession = 'animal-trainer' | 'criminal' | 'diplomat' | 'merchant' | 'performer' | 'scholar'
-export const PROFESSIONS: Profession[] = ['animal-trainer', 'criminal', 'diplomat', 'merchant', 'performer', 'scholar']
+export type Profession =
+  | 'animal-trainer' | 'criminal' | 'diplomat' | 'merchant' | 'performer'
+  | 'priest' | 'scout' | 'soldier' | 'tinkerer' | 'warlock'
+
+export const PROFESSIONS: Profession[] = [
+  'animal-trainer', 'criminal', 'diplomat', 'merchant', 'performer',
+  'priest', 'scout', 'soldier', 'tinkerer', 'warlock',
+]
 
 export type GearSlots = {
   weapon: string | null
@@ -40,9 +46,10 @@ export type StarterClass = {
   abilities: AbilityDefinition[]
 }
 
+// Class names match SimpleQuest ability sources — SQ is source of truth for content
 export const STARTER_CLASSES: StarterClass[] = [
   {
-    name: 'Fighter',
+    name: 'fighter',
     die: 'd8',
     maxHp: 20,
     maxEnergy: 4,
@@ -70,7 +77,7 @@ export const STARTER_CLASSES: StarterClass[] = [
     ],
   },
   {
-    name: 'Mage',
+    name: 'wizard',
     die: 'd6',
     maxHp: 12,
     maxEnergy: 6,
@@ -98,15 +105,15 @@ export const STARTER_CLASSES: StarterClass[] = [
     ],
   },
   {
-    name: 'Rogue',
-    die: 'd8',
+    name: 'marksman',
+    die: 'd6',
     maxHp: 14,
     maxEnergy: 5,
     speed: 4,
     abilities: [
       {
-        id: 'stab',
-        name: 'Stab',
+        id: 'shoot',
+        name: 'Shoot',
         energyCost: 1,
         diceNotation: { kind: 'actor' },
         targetType: 'enemy',
@@ -126,15 +133,15 @@ export const STARTER_CLASSES: StarterClass[] = [
     ],
   },
   {
-    name: 'Cleric',
+    name: 'sage',
     die: 'd6',
     maxHp: 16,
     maxEnergy: 5,
     speed: 3,
     abilities: [
       {
-        id: 'smite',
-        name: 'Smite',
+        id: 'hex',
+        name: 'Hex',
         energyCost: 1,
         diceNotation: { kind: 'actor' },
         targetType: 'enemy',
@@ -148,6 +155,34 @@ export const STARTER_CLASSES: StarterClass[] = [
         diceNotation: { kind: 'notation', value: '1d6' },
         targetType: 'ally',
         effect: 'heal',
+        context: 'inCombat',
+      },
+    ],
+  },
+  {
+    name: 'monk',
+    die: 'd8',
+    maxHp: 18,
+    maxEnergy: 5,
+    speed: 4,
+    abilities: [
+      {
+        id: 'kung-fu',
+        name: 'Kung Fu',
+        energyCost: 1,
+        diceNotation: { kind: 'actor' },
+        targetType: 'enemy',
+        effect: 'damage',
+        context: 'inCombat',
+      },
+      {
+        id: 'judo-throw',
+        name: 'Judo Throw',
+        energyCost: 3,
+        diceNotation: { kind: 'notation', value: '1d6' },
+        targetType: 'enemy',
+        effect: 'debuff',
+        statusEffect: ['stunned'],
         context: 'inCombat',
       },
     ],

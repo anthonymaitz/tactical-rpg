@@ -89,7 +89,8 @@ export function ExploreScreen() {
         profession: '',
         die: actor.die,
       }
-      return JSON.stringify({ ...base, hp: actor.hp, energy: energyArray, combat: 'inCombat' as const })
+      const round = state.combatState()?.round ?? 0
+      return JSON.stringify({ ...base, hp: actor.hp, energy: energyArray, combat: 'inCombat' as const, round })
     }
 
     if (h) return JSON.stringify(h)
