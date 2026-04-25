@@ -115,7 +115,9 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
   }
 
   onLeave(client: Client): void {
-    this.state.players.delete(client.sessionId)
+    if (this.state.players.has(client.sessionId)) {
+      this.state.players.delete(client.sessionId)
+    }
   }
 
   async onDispose(): Promise<void> {

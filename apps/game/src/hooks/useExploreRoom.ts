@@ -3,6 +3,7 @@ import { joinRoom } from './useGameServer'
 import type { Room } from 'colyseus.js'
 import type { Position, SceneData, EncounterEvent } from 'shared-types'
 import type { CharacterData } from 'simplequest-hud'
+import { supabase } from '../lib/supabase'
 
 type PlayerPosition = { x: number; y: number; characterId: string; onChange: (cb: () => void) => void }
 type NpcEntity = { id: string; name: string; role: string; x: number; y: number }
@@ -55,8 +56,10 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
 
     if (!t) return
 
-    joinRoom<ExploreState>('ExploreRoom', { token: t, heroIds: ids })
-      .then((r) => {
+    supabase.auth.getSession().then(({ data }) => {
+      const freshToken = data.session?.access_token ?? t
+      return joinRoom<ExploreState>('ExploreRoom', { token: freshToken, heroIds: ids })
+    }).then((r) => {
         room = r
         setMySessionId(r.sessionId)
         setConnected(true)
