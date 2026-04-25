@@ -84,6 +84,12 @@ export function ExploreScreen() {
     return null
   }
 
+  const encounterPanels = (): Panel[] | null => {
+    const ev = state.encounter()
+    if (!ev) return null
+    return [{ speaker: ev.enemyName, text: 'Blocks your path! Combat coming soon.' }]
+  }
+
   return (
     <Show when={!state.error()} fallback={<div style={{ padding: '20px', color: 'red' }}>Connection error: {state.error()}</div>}>
       <Show when={state.connected()} fallback={<div style={{ padding: '20px', background: '#111', color: '#fff', 'min-height': '100vh' }}>Connecting to The Inn…</div>}>
@@ -121,6 +127,15 @@ export function ExploreScreen() {
             {(panels) => (
               <div style={{ position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', 'max-width': '480px', width: '100%', 'z-index': '10' }}>
                 <ComicPlayer panels={panels()} onComplete={state.dismissInteraction} />
+              </div>
+            )}
+          </Show>
+
+          {/* Encounter comic panel — bottom center overlay */}
+          <Show when={encounterPanels()}>
+            {(panels) => (
+              <div style={{ position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', 'max-width': '480px', width: '100%', 'z-index': '10' }}>
+                <ComicPlayer panels={panels()} onComplete={state.dismissEncounter} />
               </div>
             )}
           </Show>
