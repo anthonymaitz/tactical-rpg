@@ -86,47 +86,49 @@ export function ExploreScreen() {
 
   return (
     <Show when={!state.error()} fallback={<div style={{ padding: '20px', color: 'red' }}>Connection error: {state.error()}</div>}>
-      <Show when={state.connected()} fallback={<div style={{ padding: '20px' }}>Connecting to The Inn…</div>}>
-        <div style={{ display: 'flex', 'flex-direction': 'column', 'align-items': 'center', padding: '20px', background: '#111', 'min-height': '100vh', color: '#fff' }}>
-          <div style={{ display: 'flex', gap: '12px', 'margin-bottom': '16px', 'align-items': 'center' }}>
-            <h2 style={{ margin: '0' }}>The Inn</h2>
+      <Show when={state.connected()} fallback={<div style={{ padding: '20px', background: '#111', color: '#fff', 'min-height': '100vh' }}>Connecting to The Inn…</div>}>
+        <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
+          {/* Full-screen board */}
+          <div style={{ position: 'absolute', inset: '0' }}>
+            <PlaysetBoard
+              mode="explore"
+              roomId="inn"
+              exploreMap={exploreMap()}
+              sceneJson={sceneJson()}
+              onCellClick={handleCellClick}
+            />
+          </div>
+
+          {/* Top-right HUD button */}
+          <div style={{ position: 'absolute', top: '12px', right: '12px', 'z-index': '10', display: 'flex', gap: '8px' }}>
             <button
               onClick={() => setShowSheet((v) => !v)}
-              style={{ padding: '4px 12px', 'font-size': '12px', cursor: 'pointer' }}
+              style={{ padding: '6px 14px', 'font-size': '12px', cursor: 'pointer', background: 'rgba(10,15,10,0.85)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', 'border-radius': '4px' }}
             >
               {showSheet() ? 'Hide Sheet' : 'Character Sheet'}
             </button>
           </div>
 
-          <div style={{ 'font-size': '11px', color: '#666', 'margin-bottom': '8px' }}>
-            Click an adjacent NPC or door to interact · Click a floor tile to move
-          </div>
-
-          <div style={{ display: 'flex', gap: '20px', 'align-items': 'flex-start', width: '100%', 'justify-content': 'center' }}>
-            <div style={{ width: '720px', height: '480px', 'flex-shrink': '0' }}>
-              <PlaysetBoard
-                mode="explore"
-                roomId="inn"
-                exploreMap={exploreMap()}
-                sceneJson={sceneJson()}
-                onCellClick={handleCellClick}
-              />
+          {/* Character sheet slide-in panel */}
+          <Show when={showSheet()}>
+            <div style={{ position: 'absolute', top: '0', right: '0', bottom: '0', width: '480px', 'z-index': '10', overflow: 'auto', background: 'rgba(10,15,10,0.95)', 'border-left': '1px solid rgba(255,255,255,0.08)' }}>
+              <SimpleQuestHUD content={contentJson} character={characterJson()} />
             </div>
+          </Show>
 
-            <Show when={showSheet()}>
-              <div style={{ width: '480px', 'flex-shrink': '0' }}>
-                <SimpleQuestHUD content={contentJson} character={characterJson()} />
-              </div>
-            </Show>
-          </div>
-
+          {/* Interaction comic panel — bottom center overlay */}
           <Show when={interactionPanels()}>
             {(panels) => (
-              <div style={{ 'margin-top': '20px', 'max-width': '480px', width: '100%' }}>
+              <div style={{ position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', 'max-width': '480px', width: '100%', 'z-index': '10' }}>
                 <ComicPlayer panels={panels()} onComplete={state.dismissInteraction} />
               </div>
             )}
           </Show>
+
+          {/* Hint text — bottom left */}
+          <div style={{ position: 'absolute', bottom: '10px', left: '10px', 'font-size': '11px', color: 'rgba(255,255,255,0.3)', 'z-index': '10', 'pointer-events': 'none' }}>
+            Click adjacent NPC or door to interact · Click floor to move
+          </div>
         </div>
       </Show>
     </Show>
