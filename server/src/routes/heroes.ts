@@ -16,14 +16,15 @@ heroRoutes.use('*', async (c, next) => {
   const token = auth.slice(7)
   const projectUrl = process.env.SUPABASE_URL
   if (!projectUrl) return c.json({ error: 'Server misconfigured' }, 500)
+  let userId: string
   try {
-    const userId = await verifySupabaseJWT(token, projectUrl)
-    c.set('userId', userId)
-    await next()
+    userId = await verifySupabaseJWT(token, projectUrl)
   } catch (e) {
     console.error('JWT verification failed:', e)
     return c.json({ error: 'Invalid token' }, 401)
   }
+  c.set('userId', userId)
+  await next()
 })
 
 // GET /heroes — list current user's heroes
