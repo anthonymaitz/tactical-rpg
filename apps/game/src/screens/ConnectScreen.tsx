@@ -3,10 +3,20 @@ import { useNavigate } from '@solidjs/router'
 import { supabase } from '../lib/supabase'
 import { createHeroes } from '../hooks/useHeroes'
 import { STARTER_CLASSES, PERSONALITIES, PROFESSIONS, isRecovering } from 'shared-types'
-import type { HeroRecord, Personality, Profession } from 'shared-types'
+import type { HeroRecord, Personality } from 'shared-types'
 import { setToken, setHeroIds } from '../session'
+import { SimpleQuestHUD, sampleContent } from 'simplequest-hud'
+import type { CharacterChangeData } from 'simplequest-hud'
 
 type View = 'auth' | 'roster' | 'create'
+
+// Content for the create screen uses server-authoritative class/personality/profession names
+const createContent = JSON.stringify({
+  ...sampleContent,
+  classes: STARTER_CLASSES.map((c) => c.name),
+  personalities: [...PERSONALITIES],
+  professions: [...PROFESSIONS],
+})
 
 export function ConnectScreen() {
   const navigate = useNavigate()
@@ -17,10 +27,9 @@ export function ConnectScreen() {
   const [authError, setAuthError] = createSignal<string | null>(null)
   const [authLoading, setAuthLoading] = createSignal(false)
   const [selected, setSelected] = createSignal<Set<string>>(new Set())
-  const [heroName, setHeroName] = createSignal('')
-  const [heroClass, setHeroClass] = createSignal(STARTER_CLASSES[0].name)
-  const [heroPersonality, setHeroPersonality] = createSignal<Personality>(PERSONALITIES[0])
-  const [heroProfession, setHeroProfession] = createSignal<Profession>(PROFESSIONS[0])
+  const [createCharacter, setCreateCharacter] = createSignal<CharacterChangeData>({
+    name: '', class: '', profession: '', personality: '', die: 'd6',
+  })
   const [createError, setCreateError] = createSignal<string | null>(null)
 
   const { heroes, loading: heroesLoading, createHero } = createHeroes(accessToken)
@@ -59,10 +68,18 @@ export function ConnectScreen() {
 
   async function handleCreateHero() {
     setCreateError(null)
-    if (!heroName().trim()) { setCreateError('Name is required'); return }
+    const c = createCharacter()
+    if (!c.name.trim()) { setCreateError('Enter a name in the character sheet above'); return }
+    if (!c.class) { setCreateError('Select a class in the character sheet above'); return }
+    if (!c.personality) { setCreateError('Select a personality in the character sheet above'); return }
+    if (!c.profession) { setCreateError('Select a profession in the character sheet above'); return }
     try {
-      await createHero({ name: heroName().trim(), className: heroClass(), personality: heroPersonality(), profession: heroProfession() })
-      setHeroName('')
+      await createHero({
+        name: c.name.trim(),
+        className: c.class,
+        personality: c.personality as Personality,
+        profession: c.profession,
+      })
       setView('roster')
     } catch (e) {
       setCreateError(e instanceof Error ? e.message : 'Failed to create hero')
@@ -110,40 +127,37 @@ export function ConnectScreen() {
       </Match>
 
       <Match when={view() === 'create'}>
-        <div style={{ display: 'flex', 'flex-direction': 'column', gap: '12px', 'max-width': '400px', margin: '60px auto' }}>
-          <h2>Create Your First Hero</h2>
-          <input placeholder="Hero name" value={heroName()} onInput={(e) => setHeroName(e.currentTarget.value)} style={{ padding: '8px' }} />
-          <label>
-            Class
-            <select value={heroClass()} onChange={(e) => setHeroClass(e.currentTarget.value)} style={{ 'margin-left': '8px' }}>
-              <For each={STARTER_CLASSES}>
-                {(sc) => <option value={sc.name}>{sc.name} ({sc.die})</option>}
-              </For>
-            </select>
-          </label>
-          <label>
-            Personality
-            <select value={heroPersonality()} onChange={(e) => setHeroPersonality(e.currentTarget.value as Personality)} style={{ 'margin-left': '8px' }}>
-              <For each={PERSONALITIES}>
-                {(p) => <option value={p}>{p}</option>}
-              </For>
-            </select>
-          </label>
-          <label>
-            Profession
-            <select value={heroProfession()} onChange={(e) => setHeroProfession(e.currentTarget.value as Profession)} style={{ 'margin-left': '8px' }}>
-              <For each={PROFESSIONS}>
-                {(p) => <option value={p}>{p}</option>}
-              </For>
-            </select>
-          </label>
-          <Show when={createError()}>
-            <p style={{ color: 'red' }}>{createError()}</p>
-          </Show>
-          <button onClick={handleCreateHero} style={{ padding: '10px 20px' }}>Create Hero</button>
-          <Show when={heroes().length > 0}>
-            <button onClick={() => setView('roster')} style={{ padding: '8px 16px' }}>Back to Roster</button>
-          </Show>
+        <div style={{
+          display: 'flex', 'flex-direction': 'column',
+          height: '100vh', 'max-width': '440px', margin: '0 auto',
+        }}>
+          <div style={{ flex: '1', 'min-height': '0', overflow: 'hidden' }}>
+            <SimpleQuestHUD
+              content={createContent}
+              onCharacterChange={(data) => setCreateCharacter(data)}
+            />
+          </div>
+          <div style={{
+            'flex-shrink': '0',
+            padding: '12px 16px',
+            'border-top': '1px solid #e0e0e0',
+            display: 'flex',
+            'flex-direction': 'column',
+            gap: '8px',
+            background: '#fff',
+          }}>
+            <Show when={createError()}>
+              <p style={{ color: 'red', margin: '0', 'font-size': '13px' }}>{createError()}</p>
+            </Show>
+            <button onClick={handleCreateHero} style={{ padding: '10px 20px', 'font-size': '15px', cursor: 'pointer' }}>
+              Create Hero
+            </button>
+            <Show when={heroes().length > 0}>
+              <button onClick={() => setView('roster')} style={{ padding: '8px 16px', cursor: 'pointer' }}>
+                Back to Roster
+              </button>
+            </Show>
+          </div>
         </div>
       </Match>
 
