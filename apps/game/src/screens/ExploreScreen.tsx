@@ -1,5 +1,5 @@
 import { createSignal, createMemo, Show } from 'solid-js'
-import { THE_INN, generateSceneFromInn, getReachableCells, getMoveCost } from 'shared-types'
+import { THE_INN, generateSceneFromInn, getReachableCells, getMoveCost, getFrontCell } from 'shared-types'
 import type { ExploreMap, ExploreToken, SceneData, AbilityDefinition, Position } from 'shared-types'
 import type { Panel } from 'click-comics'
 import { createExploreRoom } from '../hooks/useExploreRoom'
@@ -115,14 +115,26 @@ export function ExploreScreen() {
   })
 
   const highlights = createMemo(() => {
-    if (!state.combatState()) return []
-    const ability = selectedAbility()
-    const base = ability
-      ? abilityHighlights().map((p) => ({ x: p.x, y: p.y, kind: 'ability' as const }))
-      : moveHighlights().map((p) => ({ x: p.x, y: p.y, kind: 'move' as const }))
     const dp = dragPos()
-    if (dp) return [...base, { x: dp.x, y: dp.y, kind: 'target' as const }]
-    return base
+    if (state.combatState()) {
+      const ability = selectedAbility()
+      const base = ability
+        ? abilityHighlights().map((p) => ({ x: p.x, y: p.y, kind: 'ability' as const }))
+        : moveHighlights().map((p) => ({ x: p.x, y: p.y, kind: 'move' as const }))
+      if (dp) return [...base, { x: dp.x, y: dp.y, kind: 'target' as const }]
+      return base
+    }
+    if (!dp) return []
+    // Explore-mode drag: determine highlight kind for drop position
+    const isDialog = state.npcs().some((npc) => {
+      const front = getFrontCell({ x: npc.x, y: npc.y }, npc.direction)
+      return dp.x === front.x && dp.y === front.y
+    }) || state.doors().some((d) => Math.abs(dp.x - d.x) + Math.abs(dp.y - d.y) === 1)
+    const isEncounter = Object.values(state.enemies()).some(
+      (e) => Math.abs(dp.x - e.x) + Math.abs(dp.y - e.y) <= 3
+    )
+    const kind = isEncounter ? 'encounter' : isDialog ? 'dialog' : 'drop'
+    return [{ x: dp.x, y: dp.y, kind }]
   })
 
   function handleAbilityActivate(title: string) {
@@ -188,12 +200,14 @@ export function ExploreScreen() {
         id,
         label: id,
         isMe: id === state.mySessionId(),
+        direction: p.direction,
       })),
       ...state.npcs().map((n) => ({
         x: n.x, y: n.y,
         type: 'npc' as const,
         id: n.id,
         label: n.name,
+        direction: n.direction,
       })),
       ...state.doors().map((d) => ({
         x: d.x, y: d.y,

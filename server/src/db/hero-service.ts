@@ -10,6 +10,7 @@ function toHeroRecord(row: Record<string, unknown>): HeroRecord {
     name: row.name as string,
     characterClass: row.character_class as string,
     personality: row.personality as HeroRecord['personality'],
+    profession: (row.profession as string) ?? '',
     die: row.die as HeroRecord['die'],
     level: row.level as number,
     xp: row.xp as number,
@@ -48,7 +49,8 @@ export const heroService = {
     userId: string,
     name: string,
     starterClass: StarterClass,
-    personality: HeroRecord['personality']
+    personality: HeroRecord['personality'],
+    profession: string
   ): Promise<HeroRecord> {
     const { data, error } = await supabase
       .from('heroes')
@@ -57,6 +59,7 @@ export const heroService = {
         name,
         character_class: starterClass.name,
         personality,
+        profession,
         die: starterClass.die,
         max_hp: starterClass.maxHp,
         max_energy: starterClass.maxEnergy,

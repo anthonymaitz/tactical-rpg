@@ -4,7 +4,7 @@ import { ExploreState, PlayerPosition, NpcEntity, DoorEntity, EnemyEntity } from
 import { BaseRoom } from './BaseRoom'
 import { EnemyManager } from './EnemyManager'
 import { InPlaceCombatEngine } from './InPlaceCombatEngine'
-import { isValidMove, isWalkable, isAdjacent } from './logic/explore-logic'
+import { isValidMove, isWalkable, isAdjacent, getFrontCell, getMovementDirection } from './logic/explore-logic'
 import { heroService } from '../db/hero-service'
 import { supabase } from '../db/supabase'
 import { THE_INN, STARTER_CLASSES, generateSceneFromInn } from 'shared-types'
@@ -14,7 +14,7 @@ interface MoveMessage {
   destination: Position
 }
 
-const INN_MOVE_SPEED = 3
+const INN_MOVE_SPEED = 10
 const SCENE_SLUG = 'inn-main'
 const RECOVERY_HOURS = 8
 
@@ -59,6 +59,7 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
         entity.role = token.role ?? ''
         entity.x = token.col
         entity.y = token.row
+        entity.direction = token.direction ?? 's'
         this.state.npcs.push(entity)
       } else if (token.type === 'door') {
         const entity = new DoorEntity()
@@ -129,7 +130,7 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
         name: hero.name,
         class: hero.characterClass,
         personality: hero.personality,
-        profession: '',
+        profession: hero.profession ?? '',
         die: hero.die,
         hp,
         combat: 'inGeneral',
@@ -179,6 +180,7 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
         const entity = new NpcEntity()
         entity.id = token.id; entity.name = token.name ?? ''
         entity.role = token.role ?? ''; entity.x = token.col; entity.y = token.row
+        entity.direction = token.direction ?? 's'
         this.state.npcs.push(entity)
       } else if (token.type === 'door') {
         const entity = new DoorEntity()
@@ -209,8 +211,27 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       client.send('MOVE_REJECTED', { reason: 'blocked' })
       return
     }
+    current.direction = getMovementDirection(currentPos, message.destination)
     current.x = message.destination.x
     current.y = message.destination.y
+
+    if (!this._combat) {
+      // Auto-trigger dialog when player lands on NPC's front cell or adjacent to a door
+      const dest: Position = { x: current.x, y: current.y }
+      for (const npc of this.state.npcs) {
+        const front = getFrontCell({ x: npc.x, y: npc.y }, npc.direction)
+        if (dest.x === front.x && dest.y === front.y) {
+          client.send('INTERACTION_START', { type: 'npc', id: npc.id, name: npc.name, role: npc.role })
+          return
+        }
+      }
+      for (const door of this.state.doors) {
+        if (isAdjacent(dest, { x: door.x, y: door.y })) {
+          client.send('INTERACTION_START', { type: 'door', id: door.id, biomeId: door.biomeId, label: door.label })
+          return
+        }
+      }
+    }
 
     if (!this._combat) {
       const encounter = this.enemyManager.onPlayerMove(current.x, current.y)

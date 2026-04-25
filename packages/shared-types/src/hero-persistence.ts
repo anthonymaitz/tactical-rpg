@@ -2,6 +2,8 @@ import type { AbilityDefinition } from './ability-types'
 
 export type Die = 'd4' | 'd6' | 'd8' | 'd10' | 'd12' | 'd20'
 export type Personality = 'passionate' | 'calculating' | 'wild' | 'selfish' | 'righteous'
+export type Profession = 'animal-trainer' | 'criminal' | 'diplomat' | 'merchant' | 'performer' | 'scholar'
+export const PROFESSIONS: Profession[] = ['animal-trainer', 'criminal', 'diplomat', 'merchant', 'performer', 'scholar']
 
 export type GearSlots = {
   weapon: string | null
@@ -16,6 +18,7 @@ export type HeroRecord = {
   name: string
   characterClass: string
   personality: Personality
+  profession: Profession
   die: Die
   level: number
   xp: number

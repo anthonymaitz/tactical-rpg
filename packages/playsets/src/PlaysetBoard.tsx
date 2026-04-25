@@ -68,6 +68,7 @@ function ExploreBoard(props: PlaysetBoardProps) {
         y: t.y,
         isMe: t.isMe,
         label: t.label,
+        direction: t.direction,
       })),
     )
   })

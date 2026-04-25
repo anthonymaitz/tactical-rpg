@@ -4,6 +4,7 @@ export class PlayerPosition extends Schema {
   @type('number') x: number = 0
   @type('number') y: number = 0
   @type('string') characterId: string = ''
+  @type('string') direction: string = 's'
 }
 
 export class NpcEntity extends Schema {
@@ -12,6 +13,7 @@ export class NpcEntity extends Schema {
   @type('string') role: string = ''
   @type('number') x: number = 0
   @type('number') y: number = 0
+  @type('string') direction: string = 's'
 }
 
 export class DoorEntity extends Schema {

@@ -2,8 +2,8 @@ import { createSignal, onMount, onCleanup, For, Show, Switch, Match } from 'soli
 import { useNavigate } from '@solidjs/router'
 import { supabase } from '../lib/supabase'
 import { createHeroes } from '../hooks/useHeroes'
-import { STARTER_CLASSES, PERSONALITIES, isRecovering } from 'shared-types'
-import type { HeroRecord, Personality } from 'shared-types'
+import { STARTER_CLASSES, PERSONALITIES, PROFESSIONS, isRecovering } from 'shared-types'
+import type { HeroRecord, Personality, Profession } from 'shared-types'
 import { setToken, setHeroIds } from '../session'
 
 type View = 'auth' | 'roster' | 'create'
@@ -20,6 +20,7 @@ export function ConnectScreen() {
   const [heroName, setHeroName] = createSignal('')
   const [heroClass, setHeroClass] = createSignal(STARTER_CLASSES[0].name)
   const [heroPersonality, setHeroPersonality] = createSignal<Personality>(PERSONALITIES[0])
+  const [heroProfession, setHeroProfession] = createSignal<Profession>(PROFESSIONS[0])
   const [createError, setCreateError] = createSignal<string | null>(null)
 
   const { heroes, loading: heroesLoading, createHero } = createHeroes(accessToken)
@@ -60,7 +61,7 @@ export function ConnectScreen() {
     setCreateError(null)
     if (!heroName().trim()) { setCreateError('Name is required'); return }
     try {
-      await createHero({ name: heroName().trim(), className: heroClass(), personality: heroPersonality() })
+      await createHero({ name: heroName().trim(), className: heroClass(), personality: heroPersonality(), profession: heroProfession() })
       setHeroName('')
       setView('roster')
     } catch (e) {
@@ -124,6 +125,14 @@ export function ConnectScreen() {
             Personality
             <select value={heroPersonality()} onChange={(e) => setHeroPersonality(e.currentTarget.value as Personality)} style={{ 'margin-left': '8px' }}>
               <For each={PERSONALITIES}>
+                {(p) => <option value={p}>{p}</option>}
+              </For>
+            </select>
+          </label>
+          <label>
+            Profession
+            <select value={heroProfession()} onChange={(e) => setHeroProfession(e.currentTarget.value as Profession)} style={{ 'margin-left': '8px' }}>
+              <For each={PROFESSIONS}>
                 {(p) => <option value={p}>{p}</option>}
               </For>
             </select>

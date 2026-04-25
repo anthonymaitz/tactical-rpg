@@ -19,6 +19,7 @@ export type CreateHeroInput = {
   name: string
   className: string
   personality: string
+  profession: string
 }
 
 export function createHeroes(token: () => string | null) {

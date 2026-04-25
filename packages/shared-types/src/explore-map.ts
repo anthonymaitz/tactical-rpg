@@ -7,6 +7,7 @@ export interface ExploreToken {
   id: string
   label: string
   isMe?: boolean
+  direction?: string
 }
 
 export interface ExploreMap {

@@ -15,7 +15,7 @@ export interface BuildEvent {
 export interface Highlight {
   x: number
   y: number
-  kind: 'move' | 'ability' | 'target'
+  kind: 'move' | 'ability' | 'target' | 'drop' | 'dialog' | 'encounter'
 }
 
 export interface PlaysetBoardProps {

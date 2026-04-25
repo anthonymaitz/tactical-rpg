@@ -1,7 +1,7 @@
 // server/src/routes/heroes.ts
 import { Hono } from 'hono'
 import { heroService } from '../db/hero-service'
-import { STARTER_CLASSES, PERSONALITIES } from 'shared-types'
+import { STARTER_CLASSES, PERSONALITIES, PROFESSIONS } from 'shared-types'
 import { supabase } from '../db/supabase'
 import { verifySupabaseJWT } from '../auth'
 
@@ -34,10 +34,10 @@ heroRoutes.get('/', async (c) => {
 })
 
 // POST /heroes — create a new hero
-// Body: { name: string, className: string, personality: string }
+// Body: { name: string, className: string, personality: string, profession: string }
 heroRoutes.post('/', async (c) => {
   const userId = c.get('userId') as string
-  const body = await c.req.json<{ name: string; className: string; personality: string }>()
+  const body = await c.req.json<{ name: string; className: string; personality: string; profession: string }>()
 
   const starterClass = STARTER_CLASSES.find((sc) => sc.name === body.className)
   if (!starterClass) return c.json({ error: `Unknown class: ${body.className}` }, 400)
@@ -45,12 +45,16 @@ heroRoutes.post('/', async (c) => {
   if (!PERSONALITIES.includes(body.personality as typeof PERSONALITIES[number])) {
     return c.json({ error: `Invalid personality: ${body.personality}` }, 400)
   }
+  if (!PROFESSIONS.includes(body.profession as typeof PROFESSIONS[number])) {
+    return c.json({ error: `Invalid profession: ${body.profession}` }, 400)
+  }
 
   const hero = await heroService.createHero(
     userId,
     body.name.trim(),
     starterClass,
-    body.personality as Parameters<typeof heroService.createHero>[3]
+    body.personality as Parameters<typeof heroService.createHero>[3],
+    body.profession
   )
   return c.json(hero, 201)
 })

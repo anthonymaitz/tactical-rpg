@@ -83,7 +83,7 @@ export class EnemyManager {
     this.enemies.forEach((enemy) => {
       if (found) return
       const dist = Math.abs(px - enemy.x) + Math.abs(py - enemy.y)
-      if (dist === 1) {
+      if (dist <= 3) {
         found = { enemyId: enemy.id, enemyName: enemy.name, x: enemy.x, y: enemy.y }
       }
     })

@@ -5,8 +5,8 @@ import type { Position, SceneData, EncounterEvent, CombatState, Action } from 's
 import type { CharacterData } from 'simplequest-hud'
 import { supabase } from '../lib/supabase'
 
-type PlayerPosition = { x: number; y: number; characterId: string; onChange: (cb: () => void) => void }
-type NpcEntity = { id: string; name: string; role: string; x: number; y: number }
+type PlayerPosition = { x: number; y: number; characterId: string; direction: string; onChange: (cb: () => void) => void }
+type NpcEntity = { id: string; name: string; role: string; x: number; y: number; direction: string }
 type DoorEntity = { id: string; biomeId: string; label: string; x: number; y: number }
 type EnemyEntity = { id: string; name: string; x: number; y: number; hp: number; maxHp: number; level: number }
 type ExploreState = {
@@ -16,8 +16,8 @@ type ExploreState = {
   enemies: { onAdd: (cb: (enemy: EnemyEntity, id: string) => void) => void; onRemove: (cb: (val: unknown, id: string) => void) => void }
 }
 
-export type PlayerState = { x: number; y: number; characterId: string }
-export type NpcState = { id: string; name: string; role: string; x: number; y: number }
+export type PlayerState = { x: number; y: number; characterId: string; direction: string }
+export type NpcState = { id: string; name: string; role: string; x: number; y: number; direction: string }
 export type DoorState = { id: string; biomeId: string; label: string; x: number; y: number }
 export type EnemyState = { id: string; name: string; x: number; y: number }
 export type InteractionEvent =
@@ -75,16 +75,16 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
         setConnected(true)
 
         r.state.players.onAdd((player: PlayerPosition, sessionId: string) => {
-          setPlayers((prev) => ({ ...prev, [sessionId]: { x: player.x, y: player.y, characterId: player.characterId } }))
+          setPlayers((prev) => ({ ...prev, [sessionId]: { x: player.x, y: player.y, characterId: player.characterId, direction: player.direction } }))
           player.onChange(() => {
-            setPlayers((prev) => ({ ...prev, [sessionId]: { x: player.x, y: player.y, characterId: player.characterId } }))
+            setPlayers((prev) => ({ ...prev, [sessionId]: { x: player.x, y: player.y, characterId: player.characterId, direction: player.direction } }))
           })
         })
         r.state.players.onRemove((_: unknown, sessionId: string) => {
           setPlayers((prev) => { const next = { ...prev }; delete next[sessionId]; return next })
         })
         r.state.npcs.onAdd((npc: NpcEntity) => {
-          setNpcs((prev) => [...prev, { id: npc.id, name: npc.name, role: npc.role, x: npc.x, y: npc.y }])
+          setNpcs((prev) => [...prev, { id: npc.id, name: npc.name, role: npc.role, x: npc.x, y: npc.y, direction: npc.direction }])
         })
         r.state.doors.onAdd((door: DoorEntity) => {
           setDoors((prev) => [...prev, { id: door.id, biomeId: door.biomeId, label: door.label, x: door.x, y: door.y }])

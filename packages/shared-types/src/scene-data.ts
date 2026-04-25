@@ -31,6 +31,7 @@ export interface SceneToken {
   label?: string
   level?: number
   spawnRadius?: number
+  direction?: string
 }
 
 export interface EncounterEvent {
@@ -66,6 +67,7 @@ export function generateSceneFromInn(inn: InnMap): SceneData {
       row: npc.y,
       role: npc.role,
       name: npc.name,
+      direction: npc.direction,
     })),
     ...inn.doors.map(door => ({
       id: door.id,
