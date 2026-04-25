@@ -40,19 +40,14 @@ export function ExploreScreen() {
   })
   const contentJson = JSON.stringify(sampleContent)
 
-  // Merge live combat HP/energy into the HUD character attribute
-  const characterJson = () => {
-    const h = state.heroState()
-    if (!h) return ''
-    const actor = myActor()
-    if (!actor) return JSON.stringify(h)
-    const energyArray = Array(10).fill(false).map((_, i) => i < actor.energy)
-    return JSON.stringify({ ...h, hp: actor.hp, energy: energyArray, combat: 'inCombat' as const })
-  }
-
   const myHeroId = (): string | null => {
     const cs = state.combatState()
     if (!cs) return null
+    // Match by hero ID from session — reliable even after the actor moves
+    const ids = heroIds()
+    const byId = Object.values(cs.actors).find((a) => !a.isNPC && ids.includes(a.id))
+    if (byId) return byId.id
+    // Fallback: position match when heroIds aren't populated
     const myPos = state.myPosition()
     if (!myPos) return null
     return Object.values(cs.actors).find(
@@ -72,6 +67,27 @@ export function ExploreScreen() {
     const heroId = myHeroId()
     if (!cs || !heroId) return null
     return cs.actors[heroId] ?? null
+  }
+
+  // Build character data for the HUD — prefer heroState (full data), fall back to combat actor
+  const characterJson = () => {
+    const actor = myActor()
+    const h = state.heroState()
+
+    if (actor) {
+      const energyArray = Array(10).fill(false).map((_, i) => i < actor.energy)
+      const base = h ?? {
+        name: actor.name,
+        class: actor.characterClass,
+        personality: actor.personality,
+        profession: '',
+        die: actor.die,
+      }
+      return JSON.stringify({ ...base, hp: actor.hp, energy: energyArray, combat: 'inCombat' as const })
+    }
+
+    if (h) return JSON.stringify(h)
+    return ''
   }
 
   const moveHighlights = createMemo((): Position[] => {
