@@ -29,7 +29,7 @@ const makeActor = (id: string, overrides: Partial<ActorState> = {}): ActorState 
 
 const makeState = (actors: Record<string, ActorState>): CombatState => ({
   roomId: 'r1', turnQueue: Object.keys(actors), currentActorIndex: 0,
-  actors, round: 1, log: [], isOver: false,
+  actors, round: 1, log: [], isOver: false, activeEnemyIds: [],
 })
 
 describe('getValidActions', () => {

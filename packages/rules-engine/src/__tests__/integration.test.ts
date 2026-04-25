@@ -33,6 +33,7 @@ function makeInitialState(): CombatState {
     round: 1,
     log: [],
     isOver: false,
+    activeEnemyIds: [],
   }
 }
 

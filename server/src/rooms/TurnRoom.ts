@@ -31,6 +31,7 @@ export class TurnRoom extends BaseRoom<object> {
       round: 1,
       log: [],
       isOver: false,
+      activeEnemyIds: [],
     }
     this.onMessage<PlayerActionMessage>('PLAYER_ACTION', (client, message) => {
       this.handlePlayerAction(client, message.action)
