@@ -371,8 +371,8 @@ export function ExploreScreen() {
             display: 'flex',
             'flex-direction': 'column',
           }}>
-            {/* SimpleQuest HUD — live character status + ability cards */}
-            <div style={{ flex: '1 1 0', overflow: 'auto' }}>
+            {/* SimpleQuest HUD — live character status + ability cards; scrolls internally */}
+            <div style={{ flex: '1 1 0', overflow: 'hidden', display: 'flex', 'flex-direction': 'column', 'min-height': '0' }}>
               <SimpleQuestHUD
                 content={contentJson}
                 character={characterJson()}

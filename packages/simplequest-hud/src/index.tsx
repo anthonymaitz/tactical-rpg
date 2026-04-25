@@ -33,6 +33,7 @@ export function SimpleQuestHUD(props: {
       ref={el}
       attr:content={props.content}
       attr:character={props.character ?? ''}
+      style="display:block;height:100%;min-height:0;"
     />
   )
 }
