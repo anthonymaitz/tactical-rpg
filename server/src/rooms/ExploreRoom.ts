@@ -1,4 +1,5 @@
 import type { Client } from '@colyseus/core'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import { ExploreState, PlayerPosition, NpcEntity, DoorEntity, EnemyEntity } from '../schemas/ExploreState'
 import { BaseRoom } from './BaseRoom'
 import { EnemyManager } from './EnemyManager'
@@ -18,6 +19,7 @@ const SCENE_SLUG = 'inn-main'
 export class ExploreRoom extends BaseRoom<ExploreState> {
   private _sceneData: SceneData = generateSceneFromInn(THE_INN)
   private enemyManager!: EnemyManager
+  private _realtimeChannel?: RealtimeChannel
 
   async onCreate(): Promise<void> {
     this.setState(new ExploreState())
@@ -59,6 +61,12 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       (partial) => Object.assign(new EnemyEntity(), partial),
       this._sceneData.tokens ?? [],
     )
+
+    this._realtimeChannel = supabase
+      .channel(`scene-${SCENE_SLUG}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'scenes', filter: `slug=eq.${SCENE_SLUG}` },
+        () => { this.reloadScene() })
+      .subscribe()
 
     this.onMessage<MoveMessage>('MOVE', (client, message) => {
       this.handleMove(client, message)
@@ -108,6 +116,48 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
 
   onLeave(client: Client): void {
     this.state.players.delete(client.sessionId)
+  }
+
+  async onDispose(): Promise<void> {
+    if (this._realtimeChannel) await supabase.removeChannel(this._realtimeChannel)
+  }
+
+  private async reloadScene(): Promise<void> {
+    const { data } = await supabase
+      .from('scenes')
+      .select('scene_data')
+      .eq('slug', SCENE_SLUG)
+      .maybeSingle()
+    if (!data?.scene_data) return
+    this._sceneData = data.scene_data as SceneData
+
+    this.state.npcs.splice(0)
+    this.state.doors.splice(0)
+    const enemyIds: string[] = []
+    this.state.enemies.forEach((_, id) => enemyIds.push(id))
+    for (const id of enemyIds) this.state.enemies.delete(id)
+
+    for (const token of this._sceneData.tokens ?? []) {
+      if (token.type === 'npc') {
+        const entity = new NpcEntity()
+        entity.id = token.id; entity.name = token.name ?? ''
+        entity.role = token.role ?? ''; entity.x = token.col; entity.y = token.row
+        this.state.npcs.push(entity)
+      } else if (token.type === 'door') {
+        const entity = new DoorEntity()
+        entity.id = token.id; entity.biomeId = token.biomeId ?? ''
+        entity.label = token.label ?? ''; entity.x = token.col; entity.y = token.row
+        this.state.doors.push(entity)
+      }
+    }
+
+    this.enemyManager = new EnemyManager(
+      this.state.enemies,
+      (partial) => Object.assign(new EnemyEntity(), partial),
+      this._sceneData.tokens ?? [],
+    )
+
+    this.broadcast('SCENE_STATE', this._sceneData)
   }
 
   private handleMove(client: Client, message: MoveMessage): void {

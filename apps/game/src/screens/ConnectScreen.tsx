@@ -85,6 +85,13 @@ export function ConnectScreen() {
     navigate('/inn')
   }
 
+  function handleOpenBuilder() {
+    const t = accessToken()
+    if (!t) return
+    setToken(t)
+    navigate('/build/inn-main')
+  }
+
   return (
     <Switch>
       <Match when={view() === 'auth'}>
@@ -173,6 +180,9 @@ export function ConnectScreen() {
             <button onClick={() => setView('create')} style={{ padding: '8px 16px' }}>+ New Hero</button>
             <button onClick={handleEnterInn} disabled={selected().size === 0} style={{ padding: '10px 20px', opacity: selected().size === 0 ? 0.5 : 1 }}>
               Enter The Inn ({selected().size} selected)
+            </button>
+            <button onClick={handleOpenBuilder} style={{ padding: '10px 20px' }}>
+              Builder
             </button>
           </div>
           <Show when={heroes().filter((h) => !isRecovering(h)).length === 0 && heroes().length > 0}>
