@@ -1,6 +1,7 @@
 import type { Client } from '@colyseus/core'
-import { ExploreState, PlayerPosition, NpcEntity, DoorEntity } from '../schemas/ExploreState'
+import { ExploreState, PlayerPosition, NpcEntity, DoorEntity, EnemyEntity } from '../schemas/ExploreState'
 import { BaseRoom } from './BaseRoom'
+import { EnemyManager } from './EnemyManager'
 import { isValidMove, isWalkable, isAdjacent } from './logic/explore-logic'
 import { heroService } from '../db/hero-service'
 import { supabase } from '../db/supabase'
@@ -16,6 +17,7 @@ const SCENE_SLUG = 'inn-main'
 
 export class ExploreRoom extends BaseRoom<ExploreState> {
   private _sceneData: SceneData = generateSceneFromInn(THE_INN)
+  private enemyManager!: EnemyManager
 
   async onCreate(): Promise<void> {
     this.setState(new ExploreState())
@@ -51,6 +53,12 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
         this.state.doors.push(entity)
       }
     }
+
+    this.enemyManager = new EnemyManager(
+      this.state.enemies,
+      (partial) => Object.assign(new EnemyEntity(), partial),
+      this._sceneData.tokens ?? [],
+    )
 
     this.onMessage<MoveMessage>('MOVE', (client, message) => {
       this.handleMove(client, message)
@@ -116,6 +124,10 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     }
     current.x = message.destination.x
     current.y = message.destination.y
+    const encounter = this.enemyManager.onPlayerMove(current.x, current.y)
+    if (encounter) {
+      client.send('ENCOUNTER', encounter)
+    }
   }
 
   private handleInteract(client: Client): void {
