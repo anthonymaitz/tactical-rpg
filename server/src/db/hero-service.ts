@@ -10,7 +10,7 @@ function toHeroRecord(row: Record<string, unknown>): HeroRecord {
     name: row.name as string,
     characterClass: row.character_class as string,
     personality: row.personality as HeroRecord['personality'],
-    profession: (row.profession as string) ?? '',
+    profession: row.profession as HeroRecord['profession'],
     die: row.die as HeroRecord['die'],
     level: row.level as number,
     xp: row.xp as number,

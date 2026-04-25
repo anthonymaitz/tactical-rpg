@@ -65,8 +65,8 @@ export const STARTER_CLASSES: StarterClass[] = [
         context: 'inCombat',
       },
       {
-        id: 'shield-bash',
-        name: 'Shield Bash',
+        id: 'shield-block',
+        name: 'Shield Block',
         energyCost: 2,
         diceNotation: { kind: 'notation', value: '1d6' },
         targetType: 'enemy',
@@ -84,8 +84,8 @@ export const STARTER_CLASSES: StarterClass[] = [
     speed: 3,
     abilities: [
       {
-        id: 'magic-bolt',
-        name: 'Magic Bolt',
+        id: 'wand',
+        name: 'Wand',
         energyCost: 1,
         diceNotation: { kind: 'actor' },
         targetType: 'enemy',
@@ -93,8 +93,8 @@ export const STARTER_CLASSES: StarterClass[] = [
         context: 'inCombat',
       },
       {
-        id: 'frost-nova',
-        name: 'Frost Nova',
+        id: 'chain-lightning',
+        name: 'Chain Lightning',
         energyCost: 3,
         diceNotation: { kind: 'notation', value: '1d4' },
         targetType: 'area',
@@ -121,8 +121,8 @@ export const STARTER_CLASSES: StarterClass[] = [
         context: 'inCombat',
       },
       {
-        id: 'smoke-bomb',
-        name: 'Smoke Bomb',
+        id: 'distracting-shot',
+        name: 'Distracting Shot',
         energyCost: 2,
         diceNotation: { kind: 'notation', value: '1d4' },
         targetType: 'area',

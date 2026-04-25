@@ -151,7 +151,7 @@ export function ExploreScreen() {
     const isEncounter = Object.values(state.enemies()).some(
       (e) => Math.abs(dp.x - e.x) + Math.abs(dp.y - e.y) <= 3
     )
-    const kind = isEncounter ? 'encounter' : isDialog ? 'dialog' : 'drop'
+    const kind = (isEncounter ? 'encounter' : isDialog ? 'dialog' : 'drop') as 'encounter' | 'dialog' | 'drop'
     return [{ x: dp.x, y: dp.y, kind }]
   })
 
@@ -287,6 +287,30 @@ export function ExploreScreen() {
                   <span>{'⚔'} {current().name}{'\''}s turn {'·'} Round {state.combatState()?.round ?? 0}</span>
                 </div>
               )}
+            </Show>
+
+            {/* Targeting prompt */}
+            <Show when={selectedAbility()}>
+              <div style={{
+                position: 'absolute', top: '16px', left: '50%', transform: 'translateX(-50%)',
+                'z-index': '20', background: 'rgba(5,15,5,0.93)',
+                border: '1px solid rgba(100,220,100,0.35)', 'border-radius': '8px',
+                padding: '10px 20px', display: 'flex', 'align-items': 'center', gap: '12px',
+              }}>
+                <span style={{ color: '#9f9', 'font-size': '13px', 'font-weight': '600' }}>
+                  Select a target for {selectedAbility()!.name}
+                </span>
+                <button
+                  onClick={() => setSelectedAbility(null)}
+                  style={{
+                    background: 'none', border: '1px solid rgba(255,255,255,0.15)',
+                    'border-radius': '4px', color: '#888', cursor: 'pointer',
+                    'font-size': '11px', padding: '2px 8px',
+                  }}
+                >
+                  cancel
+                </button>
+              </div>
             </Show>
 
             {/* Action error toast */}
