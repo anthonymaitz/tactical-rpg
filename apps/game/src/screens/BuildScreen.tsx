@@ -14,6 +14,7 @@ declare module 'solid-js' {
         'attr:scene'?: string
         'attr:entities'?: string
         'attr:mode'?: string
+        'attr:highlights'?: string
         style?: string
       }
     }

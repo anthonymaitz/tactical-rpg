@@ -14,6 +14,7 @@ declare module 'solid-js' {
         'attr:scene'?: string
         'attr:entities'?: string
         'attr:mode'?: string
+        'attr:highlights'?: string
         style?: string
       }
     }
@@ -44,6 +45,20 @@ function ExploreBoard(props: PlaysetBoardProps) {
   })
 
   const entitiesJson = createMemo(() => {
+    if (props.combatState) {
+      const actors = Object.values(props.combatState.actors)
+      return JSON.stringify(
+        actors.map((a) => ({
+          id: a.id,
+          type: a.isNPC ? 'enemy' : 'player',
+          x: a.position.x,
+          y: a.position.y,
+          isMe: false,
+          label: a.name,
+          isGhost: a.isGhost ?? false,
+        })),
+      )
+    }
     const tokens = props.exploreMap?.tokens ?? []
     return JSON.stringify(
       tokens.map((t) => ({
@@ -56,6 +71,12 @@ function ExploreBoard(props: PlaysetBoardProps) {
       })),
     )
   })
+
+  const highlightsJson = createMemo(() =>
+    props.highlights && props.highlights.length > 0
+      ? JSON.stringify(props.highlights)
+      : undefined,
+  )
 
   onMount(() => {
     function onCellClick(e: Event) {
@@ -84,6 +105,7 @@ function ExploreBoard(props: PlaysetBoardProps) {
       attr:scene={sceneJson()}
       attr:entities={entitiesJson()}
       attr:mode="explore"
+      attr:highlights={highlightsJson()}
       style="width:100%;height:100%;display:block;"
     />
   )
