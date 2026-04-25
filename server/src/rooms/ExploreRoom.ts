@@ -340,7 +340,8 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
 
     try {
       this._combat.handlePlayerAction(heroId, action)
-    } catch {
+    } catch (e) {
+      client.send('ACTION_REJECTED', { reason: e instanceof Error ? e.message : 'invalid action' })
       return
     }
 
@@ -410,6 +411,8 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
         this.enemyManager.removeEnemy(enemyId)
       }
       this.broadcast('COMBAT_END', { result: 'win' })
+    } else if (winningSide === null) {
+      this.broadcast('COMBAT_END', { result: 'cancelled' })
     } else {
       const recoveryEndsAt = new Date(Date.now() + RECOVERY_HOURS * 60 * 60 * 1000).toISOString()
       const ghostHeroes = Object.values(cs.actors).filter(a => !a.isNPC && a.isGhost)
