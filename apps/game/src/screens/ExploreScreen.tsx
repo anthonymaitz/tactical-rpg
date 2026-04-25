@@ -413,6 +413,7 @@ export function ExploreScreen() {
               <SimpleQuestHUD
                 content={contentJson()}
                 character={characterJson()}
+                locked={true}
                 onAbilityActivate={handleAbilityActivate}
               />
             </div>

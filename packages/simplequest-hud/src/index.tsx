@@ -4,7 +4,7 @@ import { onMount, onCleanup } from 'solid-js'
 declare module 'solid-js' {
   namespace JSX {
     interface IntrinsicElements {
-      'simple-quest': { ref?: HTMLElement; 'attr:content'?: string; 'attr:character'?: string; style?: string }
+      'simple-quest': { ref?: HTMLElement; 'attr:content'?: string; 'attr:character'?: string; 'attr:locked'?: string; style?: string }
     }
   }
 }
@@ -23,6 +23,7 @@ export type CharacterChangeData = {
 export function SimpleQuestHUD(props: {
   content: string
   character?: string
+  locked?: boolean
   onAbilityActivate?: (title: string, energyCost: number) => void
   onCharacterChange?: (data: CharacterChangeData) => void
 }) {
@@ -49,6 +50,7 @@ export function SimpleQuestHUD(props: {
       ref={el}
       attr:content={props.content}
       attr:character={props.character ?? ''}
+      attr:locked={props.locked ? 'true' : 'false'}
       style="display:block;height:100%;min-height:0;"
     />
   )

@@ -45,21 +45,24 @@ function ExploreBoard(props: PlaysetBoardProps) {
   })
 
   const entitiesJson = createMemo(() => {
-    if (props.combatState) {
-      const actors = Object.values(props.combatState.actors)
-      return JSON.stringify(
-        actors.map((a) => ({
-          id: a.id,
-          type: a.isNPC ? 'enemy' : 'player',
-          x: a.position.x,
-          y: a.position.y,
-          isMe: a.id === props.myActorId,
-          label: a.name,
-          isGhost: a.isGhost ?? false,
-        })),
-      )
-    }
     const tokens = props.exploreMap?.tokens ?? []
+    if (props.combatState) {
+      const combatActorIds = new Set(Object.keys(props.combatState.actors))
+      // Non-combatant explore tokens (NPCs, doors) stay on the board during combat
+      const bystanders = tokens
+        .filter((t) => !combatActorIds.has(t.id) && (t.type === 'npc' || t.type === 'door'))
+        .map((t) => ({ id: t.id, type: t.type, x: t.x, y: t.y, label: t.label, direction: t.direction }))
+      const combatants = Object.values(props.combatState.actors).map((a) => ({
+        id: a.id,
+        type: a.isNPC ? 'enemy' : 'player',
+        x: a.position.x,
+        y: a.position.y,
+        isMe: a.id === props.myActorId,
+        label: a.name,
+        isGhost: a.isGhost ?? false,
+      }))
+      return JSON.stringify([...bystanders, ...combatants])
+    }
     return JSON.stringify(
       tokens.map((t) => ({
         id: t.id,
