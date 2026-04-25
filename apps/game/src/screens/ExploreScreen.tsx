@@ -43,16 +43,22 @@ export function ExploreScreen() {
   const myHeroId = (): string | null => {
     const cs = state.combatState()
     if (!cs) return null
-    // Match by hero ID from session — reliable even after the actor moves
+    const playerActors = Object.values(cs.actors).filter((a) => !a.isNPC)
+    // Match by hero ID from session — most reliable
     const ids = heroIds()
-    const byId = Object.values(cs.actors).find((a) => !a.isNPC && ids.includes(a.id))
-    if (byId) return byId.id
-    // Fallback: position match when heroIds aren't populated
+    if (ids.length > 0) {
+      const byId = playerActors.find((a) => ids.includes(a.id))
+      if (byId) return byId.id
+    }
+    // Fallback: initial position match
     const myPos = state.myPosition()
-    if (!myPos) return null
-    return Object.values(cs.actors).find(
-      (a) => !a.isNPC && a.position.x === myPos.x && a.position.y === myPos.y,
-    )?.id ?? null
+    if (myPos) {
+      const byPos = playerActors.find((a) => a.position.x === myPos.x && a.position.y === myPos.y)
+      if (byPos) return byPos.id
+    }
+    // Last resort: only player in this combat (single-player)
+    if (playerActors.length === 1) return playerActors[0].id
+    return null
   }
 
   const isMyTurn = (): boolean => {

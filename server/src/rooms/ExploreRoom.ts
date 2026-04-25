@@ -110,8 +110,16 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     this.onMessage('READY', async (client) => {
       client.send('SCENE_STATE', this._sceneData)
 
-      const userData = client.userData as { heroIds?: string[] }
-      const heroIds = userData?.heroIds ?? []
+      const userData = client.userData as { userId?: string; heroIds?: string[] }
+      let heroIds = userData?.heroIds ?? []
+
+      // If client session has no heroIds, resolve them from the authenticated user
+      if (heroIds.length === 0 && userData.userId) {
+        const heroes = await heroService.listHeroes(userData.userId)
+        heroIds = heroes.map((h) => h.id)
+        client.userData = { ...userData, heroIds } as typeof client.userData
+      }
+
       if (heroIds.length === 0) return
       const hero = await heroService.getHero(heroIds[0])
       if (!hero) return
@@ -131,14 +139,14 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
   }
 
   async onJoin(client: Client, options: { token?: string; heroIds?: string[] }): Promise<void> {
-    await this.verifyToken(options.token)
+    const userId = await this.verifyToken(options.token)
     const pos = new PlayerPosition()
     pos.x = THE_INN.spawnX
     pos.y = THE_INN.spawnY
     pos.characterId = client.sessionId
     this.state.players.set(client.sessionId, pos)
     const heroIds = options.heroIds ?? []
-    client.userData = { ...(client.userData ?? {}), heroIds }
+    client.userData = { userId, heroIds }
   }
 
   onLeave(client: Client): void {
