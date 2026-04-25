@@ -42,6 +42,7 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
   const [combatResult, setCombatResult] = createSignal<'win' | 'lose' | null>(null)
   const [recoveryEndsAt, setRecoveryEndsAt] = createSignal<string | null>(null)
   const [joinOffer, setJoinOffer] = createSignal(false)
+  const [actionError, setActionError] = createSignal<string | null>(null)
 
   createEffect(on([token, heroIds] as const, ([t, ids]) => {
     room?.leave()
@@ -61,6 +62,7 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
     setCombatResult(null)
     setRecoveryEndsAt(null)
     setJoinOffer(false)
+    setActionError(null)
 
     if (!t) return
 
@@ -119,6 +121,14 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
         r.onMessage('COMBAT_JOIN_OFFER', () => {
           setJoinOffer(true)
         })
+        r.onMessage('ACTION_REJECTED', (data: { reason?: string }) => {
+          setActionError(data.reason ?? 'Action not allowed')
+          setTimeout(() => setActionError(null), 3000)
+        })
+        r.onMessage('MOVE_REJECTED', (data: { reason?: string }) => {
+          setActionError(data.reason ?? 'Cannot move there')
+          setTimeout(() => setActionError(null), 3000)
+        })
 
         r.send('READY')
       })
@@ -149,6 +159,7 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
     combatResult,
     recoveryEndsAt,
     joinOffer,
+    actionError,
     move(destination: Position) { room?.send('MOVE', { destination }) },
     interact() { room?.send('INTERACT') },
     dismissInteraction() { setInteraction(null) },

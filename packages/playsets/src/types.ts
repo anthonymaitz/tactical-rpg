@@ -24,6 +24,7 @@ export interface PlaysetBoardProps {
   sceneJson?: string
   seed?: bigint
   combatState?: CombatState
+  myActorId?: string
   validMoves?: Action[]
   highlights?: Highlight[]
   exploreMap?: ExploreMap

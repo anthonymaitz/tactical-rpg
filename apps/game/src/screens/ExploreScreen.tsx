@@ -198,6 +198,7 @@ export function ExploreScreen() {
               exploreMap={exploreMap()}
               sceneJson={sceneJson()}
               combatState={state.combatState() ?? undefined}
+              myActorId={myHeroId() ?? undefined}
               highlights={highlights()}
               onCellClick={handleCellClick}
               onTokenMove={handleTokenMove}
@@ -336,6 +337,18 @@ export function ExploreScreen() {
                 <ComicPlayer panels={panels()} onComplete={state.dismissEncounter} />
               </div>
             )}
+          </Show>
+
+          {/* Action error toast */}
+          <Show when={state.actionError()}>
+            <div style={{
+              position: 'absolute', bottom: '100px', left: '50%', transform: 'translateX(-50%)',
+              'z-index': '30', background: 'rgba(180,40,40,0.92)', color: '#fcc',
+              'border-radius': '6px', padding: '8px 18px', 'font-size': '12px',
+              border: '1px solid rgba(255,100,100,0.3)', 'pointer-events': 'none',
+            }}>
+              {state.actionError()}
+            </div>
           </Show>
 
           {/* Hint text — bottom left */}

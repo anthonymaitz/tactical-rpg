@@ -53,7 +53,7 @@ function ExploreBoard(props: PlaysetBoardProps) {
           type: a.isNPC ? 'enemy' : 'player',
           x: a.position.x,
           y: a.position.y,
-          isMe: false,
+          isMe: a.id === props.myActorId,
           label: a.name,
           isGhost: a.isGhost ?? false,
         })),
