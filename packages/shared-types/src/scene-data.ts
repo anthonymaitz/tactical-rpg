@@ -22,13 +22,22 @@ export interface SceneProp {
 
 export interface SceneToken {
   id: string
-  type: 'npc' | 'door'
+  type: 'npc' | 'door' | 'enemy' | 'spawn-point'
   col: number
   row: number
   role?: 'innkeeper' | 'blacksmith' | 'doorkeeper'
   name?: string
   biomeId?: string
   label?: string
+  level?: number
+  spawnRadius?: number
+}
+
+export interface EncounterEvent {
+  enemyId: string
+  enemyName: string
+  x: number
+  y: number
 }
 
 export interface SceneData {
