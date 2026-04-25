@@ -64,7 +64,11 @@ function ExploreBoard(props: PlaysetBoardProps) {
     }
     function onTokenMove(e: Event) {
       const { x, y } = (e as CustomEvent<{ id: string; x: number; y: number }>).detail
-      props.onCellClick?.(x, y)
+      if (props.onTokenMove) {
+        props.onTokenMove(x, y)
+      } else {
+        props.onCellClick?.(x, y)
+      }
     }
     boardEl.addEventListener('cellclick', onCellClick)
     boardEl.addEventListener('tokenmove', onTokenMove)

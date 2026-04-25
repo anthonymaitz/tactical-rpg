@@ -12,6 +12,12 @@ export interface BuildEvent {
   structureType: string
 }
 
+export interface Highlight {
+  x: number
+  y: number
+  kind: 'move' | 'ability'
+}
+
 export interface PlaysetBoardProps {
   mode: PlaysetMode
   roomId: string
@@ -19,8 +25,10 @@ export interface PlaysetBoardProps {
   seed?: bigint
   combatState?: CombatState
   validMoves?: Action[]
+  highlights?: Highlight[]
   exploreMap?: ExploreMap
   onCellClick?: (x: number, y: number) => void
+  onTokenMove?: (x: number, y: number) => void
   onEncounter?: (e: EncounterEvent) => void
   onAction?: (a: Action) => void
   onBuild?: (e: BuildEvent) => void
