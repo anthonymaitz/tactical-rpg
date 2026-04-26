@@ -6,3 +6,5 @@ dist/
 .env.local
 .worktrees/
 .superpowers/
+node-compile-cache/
+.remember/
