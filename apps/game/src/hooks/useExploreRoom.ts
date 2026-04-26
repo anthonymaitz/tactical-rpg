@@ -167,6 +167,7 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
     actionResult,
     move(destination: Position) { room?.send('MOVE', { destination }) },
     interact() { room?.send('INTERACT') },
+    rest() { room?.send('REST') },
     dismissInteraction() { setInteraction(null) },
     dismissEncounter() { setEncounter(null) },
     sendAction(action: Action) { room?.send('PLAYER_ACTION', { action }) },

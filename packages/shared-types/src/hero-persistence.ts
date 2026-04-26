@@ -29,6 +29,7 @@ export type HeroRecord = {
   level: number
   xp: number
   maxHp: number
+  currentHp: number | null
   maxEnergy: number
   speed: number
   abilities: AbilityDefinition[]

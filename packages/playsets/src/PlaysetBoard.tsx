@@ -25,7 +25,7 @@ const TILE_SIZE = 1
 const VISIBLE_RADIUS = 10
 
 export function PlaysetBoard(props: PlaysetBoardProps) {
-  if (props.mode === 'explore') return <ExploreBoard {...props} />
+  if (props.mode === 'explore' || props.mode === 'combat') return <ExploreBoard {...props} />
   return <BattleBoard {...props} />
 }
 
@@ -114,7 +114,7 @@ function ExploreBoard(props: PlaysetBoardProps) {
       ref={boardEl}
       attr:scene={sceneJson()}
       attr:entities={entitiesJson()}
-      attr:mode="explore"
+      attr:mode={props.mode}
       attr:highlights={highlightsJson()}
       style="width:100%;height:100%;display:block;"
     />

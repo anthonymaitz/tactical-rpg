@@ -19,6 +19,7 @@ const baseHero: HeroRecord = {
   level: 1,
   xp: 0,
   maxHp: 20,
+  currentHp: null,
   maxEnergy: 4,
   speed: 3,
   abilities: [],

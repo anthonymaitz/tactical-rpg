@@ -24,6 +24,8 @@ interface SpawnPoint {
   y: number
   radius: number
   triggered: boolean
+  name: string
+  level: number
 }
 
 export class EnemyManager {
@@ -54,6 +56,8 @@ export class EnemyManager {
           y: t.row,
           radius: t.spawnRadius ?? 5,
           triggered: false,
+          name: t.name ?? 'Enemy',
+          level: t.level ?? 1,
         })
       }
     }
@@ -66,14 +70,15 @@ export class EnemyManager {
       if (dist <= sp.radius) {
         sp.triggered = true
         const id = `spawned-${sp.id}`
+        const lvl = sp.level
         this.enemies.set(id, this.makeEnemy({
           id,
-          name: 'Enemy',
+          name: sp.name,
           x: sp.x,
           y: sp.y,
-          level: 1,
-          hp: 10,
-          maxHp: 10,
+          level: lvl,
+          hp: lvl * 10,
+          maxHp: lvl * 10,
           fromSpawnPoint: true,
         }))
       }

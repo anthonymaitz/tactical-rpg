@@ -12,7 +12,7 @@ import { useNavigate } from '@solidjs/router'
 
 const NPC_PANELS: Record<string, Panel[]> = {
   innkeeper: [
-    { speaker: 'Innkeeper', text: 'Welcome to the Inn! Your heroes rest and recover here between runs.' },
+    { speaker: 'Innkeeper', text: 'Welcome back! Rest up — your heroes are fully restored.' },
   ],
   blacksmith: [
     { speaker: 'Blacksmith', text: 'I can help you equip your heroes when gear equipping arrives.' },
@@ -278,8 +278,13 @@ export function ExploreScreen() {
   const encounterPanels = (): Panel[] | null => {
     const ev = state.encounter()
     if (!ev) return null
-    return [{ speaker: ev.enemyName, text: 'Blocks your path! Combat coming soon.' }]
+    return [{ speaker: 'Encounter!', text: `A ${ev.enemyName} blocks your path. Prepare for combat!` }]
   }
+
+  // Auto-dismiss encounter panel when combat begins
+  createEffect(on(() => state.combatState(), (cs) => {
+    if (cs) state.dismissEncounter()
+  }))
 
   const currentCombatActor = createMemo(() => {
     const cs = state.combatState()
@@ -295,7 +300,7 @@ export function ExploreScreen() {
           {/* Board — fills remaining space left of sidebar */}
           <div style={{ position: 'relative', flex: '1 1 0', 'min-width': 0 }}>
             <PlaysetBoard
-              mode="explore"
+              mode={state.combatState() ? 'combat' : 'explore'}
               roomId="inn"
               exploreMap={exploreMap()}
               sceneJson={sceneJson()}
@@ -435,7 +440,11 @@ export function ExploreScreen() {
             <Show when={interactionPanels()}>
               {(panels) => (
                 <div style={{ position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', 'max-width': '480px', width: '100%', 'z-index': '10' }}>
-                  <ComicPlayer panels={panels()} onComplete={state.dismissInteraction} />
+                  <ComicPlayer panels={panels()} onComplete={() => {
+                    const ev = state.interaction()
+                    if (ev?.type === 'npc' && ev.role === 'innkeeper') state.rest()
+                    state.dismissInteraction()
+                  }} />
                 </div>
               )}
             </Show>

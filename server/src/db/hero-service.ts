@@ -24,6 +24,7 @@ function toHeroRecord(row: Record<string, unknown>): HeroRecord {
     level: row.level as number,
     xp: row.xp as number,
     maxHp: row.max_hp as number,
+    currentHp: row.current_hp as number | null,
     maxEnergy: row.max_energy as number,
     speed: row.speed as number,
     abilities: row.abilities as HeroRecord['abilities'],
@@ -142,5 +143,19 @@ export const heroService = {
       .single()
     if (error) throw error
     return toHeroRecord(data)
+  },
+
+  async updateCurrentHp(heroId: string, currentHp: number): Promise<void> {
+    await supabase
+      .from('heroes')
+      .update({ current_hp: currentHp })
+      .eq('id', heroId)
+  },
+
+  async restoreHp(heroId: string): Promise<void> {
+    await supabase
+      .from('heroes')
+      .update({ current_hp: null })
+      .eq('id', heroId)
   },
 }

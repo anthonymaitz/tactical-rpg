@@ -104,6 +104,27 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       this.handleInteract(client)
     })
 
+    this.onMessage('REST', async (client) => {
+      const userData = client.userData as { userId?: string; heroIds?: string[] }
+      const heroId = (userData?.heroIds ?? [])[0]
+      if (!heroId) return
+      const hero = await heroService.getHero(heroId)
+      if (!hero) return
+      const maxHp = hero.maxHp > 0 ? hero.maxHp : 10
+      await heroService.restoreHp(heroId)
+      client.send('HERO_STATE', {
+        name: hero.name,
+        class: hero.characterClass,
+        personality: hero.personality,
+        profession: hero.profession ?? '',
+        die: hero.die,
+        hp: maxHp,
+        maxHp,
+        combat: 'inGeneral',
+        energy: Array(10).fill(true) as boolean[],
+      })
+    })
+
     this.onMessage<{ id: string; x: number; y: number }>('DRAG_UPDATE', (client, message) => {
       this.broadcast('DRAG_UPDATE', message, { except: client })
     })
@@ -124,7 +145,8 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       if (heroIds.length === 0) return
       const hero = await heroService.getHero(heroIds[0])
       if (!hero) return
-      const hp = hero.maxHp > 0 ? hero.maxHp : 10
+      const maxHp = hero.maxHp > 0 ? hero.maxHp : 10
+      const hp = hero.currentHp !== null && hero.currentHp !== undefined ? hero.currentHp : maxHp
       client.send('HERO_STATE', {
         name: hero.name,
         class: hero.characterClass,
@@ -132,6 +154,7 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
         profession: hero.profession ?? '',
         die: hero.die,
         hp,
+        maxHp,
         combat: 'inGeneral',
         energy: Array(10).fill(true) as boolean[],
       })
@@ -304,6 +327,8 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       abilities: [ENEMY_SLASH],
     }
 
+    client.send('ENCOUNTER', encounter)
+
     this._combat = new InPlaceCombatEngine([heroActor, enemyActor], THE_INN.walls, enemyData.level)
     this._combatParticipants.add(client.sessionId)
     this._combatHeroActorIds.set(client.sessionId, hero.id)
@@ -452,6 +477,12 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
         }
         this.enemyManager.removeEnemy(enemyId)
       }
+      // Persist each hero's remaining HP
+      await Promise.all(
+        Object.values(cs.actors)
+          .filter(a => !a.isNPC)
+          .map(a => heroService.updateCurrentHp(a.id, a.hp))
+      )
       this.broadcast('COMBAT_END', { result: 'win' })
     } else if (winningSide === null) {
       this.broadcast('COMBAT_END', { result: 'cancelled' })
