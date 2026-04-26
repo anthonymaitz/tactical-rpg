@@ -1,4 +1,4 @@
-import { createSignal, createMemo, createEffect, Show } from 'solid-js'
+import { createSignal, createMemo, createEffect, on, For, Show } from 'solid-js'
 import { THE_INN, generateSceneFromInn, getReachableCells, getMoveCost, getFrontCell } from 'shared-types'
 import type { ExploreMap, ExploreToken, SceneData, AbilityDefinition, Position } from 'shared-types'
 import type { Panel } from 'click-comics'
@@ -35,13 +35,44 @@ export function ExploreScreen() {
   const [usedAbilityTitles, setUsedAbilityTitles] = createSignal<string[]>([])
   const [dragPos, setDragPos] = createSignal<Position | null>(null)
 
-  // Clear used abilities when it becomes this player's turn (new round)
-  createEffect(() => {
-    const cs = state.combatState()
-    if (cs && cs.turnQueue[cs.currentActorIndex] === myHeroId()) {
-      setUsedAbilityTitles([])
+  type Doober = { id: string; text: string; color: string }
+  const [doobers, setDoobers] = createSignal<Doober[]>([])
+
+  // Clear used abilities only when the turn TRANSITIONS to this player — not on every combat state update
+  createEffect(on(
+    () => { const cs = state.combatState(); return cs ? cs.turnQueue[cs.currentActorIndex] : null },
+    (currentActorId, prevActorId) => {
+      const heroId = myHeroId()
+      if (heroId && currentActorId === heroId && prevActorId !== heroId) {
+        setUsedAbilityTitles([])
+      }
     }
-  })
+  ))
+
+  // Spawn doobers when an action result arrives
+  createEffect(on(
+    () => state.actionResult(),
+    (result) => {
+      if (!result) return
+      const cs = state.combatState()
+      const newDoobers: Doober[] = []
+      for (const [actorId, delta] of Object.entries(result.hpDeltas)) {
+        if (delta === 0) continue
+        const actor = cs?.actors[actorId]
+        const name = actor?.name ?? actorId
+        const rollText = result.rolls.length > 0 ? ` [${result.rolls.map((r) => r.total).join('+')}]` : ''
+        newDoobers.push({
+          id: `${Date.now()}-${actorId}-${Math.random()}`,
+          text: delta < 0 ? `${name} ${delta}${rollText}` : `${name} +${delta}${rollText}`,
+          color: delta < 0 ? '#f66' : '#6f6',
+        })
+      }
+      if (newDoobers.length === 0) return
+      setDoobers((prev) => [...prev, ...newDoobers])
+      const ids = new Set(newDoobers.map((d) => d.id))
+      setTimeout(() => setDoobers((prev) => prev.filter((d) => !ids.has(d.id))), 2500)
+    }
+  ))
 
   const sceneJson = createMemo(() => {
     const sd: SceneData | null = state.sceneData()
@@ -324,6 +355,35 @@ export function ExploreScreen() {
                 border: '1px solid rgba(255,100,100,0.3)', 'pointer-events': 'none',
               }}>
                 {state.actionError()}
+              </div>
+            </Show>
+
+            {/* Doobers — floating damage/heal numbers */}
+            <Show when={doobers().length > 0}>
+              <style>{`
+                @keyframes doober-rise {
+                  0%   { opacity: 1; transform: translateY(0) scale(1); }
+                  60%  { opacity: 1; }
+                  100% { opacity: 0; transform: translateY(-80px) scale(0.8); }
+                }
+                .doober-item { animation: doober-rise 2.5s ease-out forwards; pointer-events: none; }
+              `}</style>
+              <div style={{
+                position: 'absolute', top: '50%', left: '50%',
+                transform: 'translate(-50%, -50%)',
+                'z-index': '25', display: 'flex', 'flex-direction': 'column',
+                gap: '6px', 'align-items': 'center', 'pointer-events': 'none',
+              }}>
+                <For each={doobers()}>
+                  {(d) => (
+                    <div class="doober-item" style={{
+                      color: d.color, 'font-size': '20px', 'font-weight': '800',
+                      'text-shadow': '0 2px 6px rgba(0,0,0,0.9)', 'white-space': 'nowrap',
+                    }}>
+                      {d.text}
+                    </div>
+                  )}
+                </For>
               </div>
             </Show>
 

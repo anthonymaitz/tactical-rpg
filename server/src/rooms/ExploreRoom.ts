@@ -368,8 +368,9 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     const currentActorId = cs.turnQueue[cs.currentActorIndex]
     if (currentActorId !== heroId) return
 
+    let actionResult: import('shared-types').ActionResult
     try {
-      this._combat.handlePlayerAction(heroId, action)
+      actionResult = this._combat.handlePlayerAction(heroId, action)
     } catch (e) {
       client.send('ACTION_REJECTED', { reason: e instanceof Error ? e.message : 'invalid action' })
       return
@@ -379,6 +380,8 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       this.endCombat()
       return
     }
+
+    this.broadcast('ACTION_RESULT', actionResult)
 
     // Auto-advance if energy depleted
     const updatedActor = this._combat.getCombatState().actors[heroId]
@@ -418,10 +421,15 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     this._combat.startTurn(nextId)
 
     if (cs.actors[nextId]?.isNPC) {
-      this._combat.processNPCTurns()
+      const npcResults = this._combat.processNPCTurns()
       if (this._combat.isOver()) {
         this.endCombat()
         return
+      }
+      for (const npcResult of npcResults) {
+        if (Object.keys(npcResult.hpDeltas).length > 0) {
+          this.broadcast('ACTION_RESULT', npcResult)
+        }
       }
       // Restore energy for the player who is now up after NPC turns
       const afterNPC = this._combat.getCombatState()

@@ -1,7 +1,7 @@
 import { createSignal, createEffect, on, onCleanup } from 'solid-js'
 import { joinRoom } from './useGameServer'
 import type { Room } from 'colyseus.js'
-import type { Position, SceneData, EncounterEvent, CombatState, Action } from 'shared-types'
+import type { Position, SceneData, EncounterEvent, CombatState, Action, ActionResult } from 'shared-types'
 import type { CharacterData } from 'simplequest-hud'
 import { supabase } from '../lib/supabase'
 
@@ -43,6 +43,7 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
   const [recoveryEndsAt, setRecoveryEndsAt] = createSignal<string | null>(null)
   const [joinOffer, setJoinOffer] = createSignal(false)
   const [actionError, setActionError] = createSignal<string | null>(null)
+  const [actionResult, setActionResult] = createSignal<ActionResult | null>(null)
 
   createEffect(on([token, heroIds] as const, ([t, ids]) => {
     room?.leave()
@@ -121,6 +122,9 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
         r.onMessage('COMBAT_JOIN_OFFER', () => {
           setJoinOffer(true)
         })
+        r.onMessage('ACTION_RESULT', (data: ActionResult) => {
+          setActionResult(data)
+        })
         r.onMessage('ACTION_REJECTED', (data: { reason?: string }) => {
           setActionError(data.reason ?? 'Action not allowed')
           setTimeout(() => setActionError(null), 3000)
@@ -160,6 +164,7 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
     recoveryEndsAt,
     joinOffer,
     actionError,
+    actionResult,
     move(destination: Position) { room?.send('MOVE', { destination }) },
     interact() { room?.send('INTERACT') },
     dismissInteraction() { setInteraction(null) },
