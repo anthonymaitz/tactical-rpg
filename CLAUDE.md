@@ -46,19 +46,29 @@ pnpm --filter server dev    # server (WS: 2567, HTTP: 3000)
 
 ## Foundation status
 
-Plans 01–07 complete. 124 tests pass. `pnpm typecheck` exits 0.
+Walking skeleton complete (plans 01–09 + all 4 sub-projects). `pnpm typecheck` exits 0.
 
-## Walking skeleton — next work
+### What's working end-to-end
 
-Sub-project 1 spec: `docs/superpowers/specs/2026-04-23-playsets-web-component-design.md`
+- Inn hub: heroes walk, NPC dialog on landing, door placeholders
+- In-place combat: proximity → ENCOUNTER → turn-based combat in ExploreRoom
+- SimpleQuest HUD: locked during play, Supabase is source of truth for all SQ content
+- Hero creation: class/profession/personality from DB, abilities seeded from simplequest sample content
+- Ability targeting, used-state (resets with energy), floating doobers on damage/heal
+- BuildScreen (`/build/:slug`) for designer-authored scenes saved to Supabase
 
-Replace `board-element.ts` (simple boxes placeholder) with a SolidJS web component wrapping the full `babylon/` isometric renderer. API: `attr:mode`, `attr:scene`, `attr:entities`. Events: `cellclick`, `tokendrag`, `tokenmove`, `scenechange`, `error`.
+## Next milestone — Biome Entry
 
-Four sub-projects to full game loop:
-1. Playsets Web Component ← NEXT
-2. Inn Scene + Builder (builder saves JSON to Supabase)
-3. Enemy + Proximity Combat (server detects adjacency → ENCOUNTER)
-4. Combat Integration (CombatScreen + SimpleQuestHUD)
+Game loop requires players to leave the Inn and enter a biome map. Current state: doors show a placeholder panel ("coming in next update").
+
+Priority order:
+
+1. **Doorkeeper party selection** — clicking doorkeeper NPC opens a party picker (choose available heroes), then transitions to biome
+2. **Biome map** — a real explorable map (can start with a handcrafted map, procedural later)
+3. **Post-combat rewards** — XP earned, loot drops, hero scrolls
+4. **Return/extract mechanic** — walk back to spawn pad or use recall item
+
+Specs: `docs/superpowers/specs/2026-04-20-game-design.md`
 
 ## Supabase
 
