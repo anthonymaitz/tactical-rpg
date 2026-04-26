@@ -33,6 +33,7 @@ function makeState(actors: ActorState[], winningSide?: 'players' | 'npcs'): Comb
     log: ['hit', 'miss'],
     isOver: true,
     winningSide,
+    activeEnemyIds: [],
   }
 }
 

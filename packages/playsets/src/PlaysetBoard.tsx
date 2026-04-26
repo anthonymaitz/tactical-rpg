@@ -14,6 +14,7 @@ declare module 'solid-js' {
         'attr:scene'?: string
         'attr:entities'?: string
         'attr:mode'?: string
+        'attr:highlights'?: string
         style?: string
       }
     }
@@ -32,6 +33,7 @@ function ExploreBoard(props: PlaysetBoardProps) {
   let boardEl!: HTMLElement
 
   const sceneJson = createMemo(() => {
+    if (props.sceneJson) return props.sceneJson
     const walls = props.exploreMap?.walls ?? []
     const buildings: Array<{ col: number; row: number; tileId: string }> = []
     for (let row = 0; row < walls.length; row++) {
@@ -44,6 +46,23 @@ function ExploreBoard(props: PlaysetBoardProps) {
 
   const entitiesJson = createMemo(() => {
     const tokens = props.exploreMap?.tokens ?? []
+    if (props.combatState) {
+      const combatActorIds = new Set(Object.keys(props.combatState.actors))
+      // Non-combatant explore tokens (NPCs, doors) stay on the board during combat
+      const bystanders = tokens
+        .filter((t) => !combatActorIds.has(t.id) && (t.type === 'npc' || t.type === 'door'))
+        .map((t) => ({ id: t.id, type: t.type, x: t.x, y: t.y, label: t.label, direction: t.direction }))
+      const combatants = Object.values(props.combatState.actors).map((a) => ({
+        id: a.id,
+        type: a.isNPC ? 'enemy' : 'player',
+        x: a.position.x,
+        y: a.position.y,
+        isMe: a.id === props.myActorId,
+        label: a.name,
+        isGhost: a.isGhost ?? false,
+      }))
+      return JSON.stringify([...bystanders, ...combatants])
+    }
     return JSON.stringify(
       tokens.map((t) => ({
         id: t.id,
@@ -52,17 +71,42 @@ function ExploreBoard(props: PlaysetBoardProps) {
         y: t.y,
         isMe: t.isMe,
         label: t.label,
+        direction: t.direction,
       })),
     )
   })
+
+  const highlightsJson = createMemo(() =>
+    props.highlights && props.highlights.length > 0
+      ? JSON.stringify(props.highlights)
+      : undefined,
+  )
 
   onMount(() => {
     function onCellClick(e: Event) {
       const { x, y } = (e as CustomEvent<{ x: number; y: number }>).detail
       props.onCellClick?.(x, y)
     }
+    function onTokenMove(e: Event) {
+      const { x, y } = (e as CustomEvent<{ id: string; x: number; y: number }>).detail
+      if (props.onTokenMove) {
+        props.onTokenMove(x, y)
+      } else {
+        props.onCellClick?.(x, y)
+      }
+    }
+    function onTokenDrag(e: Event) {
+      const { x, y } = (e as CustomEvent<{ id: string; x: number; y: number }>).detail
+      props.onTokenDrag?.(x, y)
+    }
     boardEl.addEventListener('cellclick', onCellClick)
-    onCleanup(() => boardEl.removeEventListener('cellclick', onCellClick))
+    boardEl.addEventListener('tokenmove', onTokenMove)
+    boardEl.addEventListener('tokendrag', onTokenDrag)
+    onCleanup(() => {
+      boardEl.removeEventListener('cellclick', onCellClick)
+      boardEl.removeEventListener('tokenmove', onTokenMove)
+      boardEl.removeEventListener('tokendrag', onTokenDrag)
+    })
   })
 
   return (
@@ -71,6 +115,7 @@ function ExploreBoard(props: PlaysetBoardProps) {
       attr:scene={sceneJson()}
       attr:entities={entitiesJson()}
       attr:mode="explore"
+      attr:highlights={highlightsJson()}
       style="width:100%;height:100%;display:block;"
     />
   )

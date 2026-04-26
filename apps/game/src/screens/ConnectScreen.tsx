@@ -1,36 +1,42 @@
 import { createSignal, onMount, onCleanup, For, Show, Switch, Match } from 'solid-js'
+import { useNavigate } from '@solidjs/router'
 import { supabase } from '../lib/supabase'
 import { createHeroes } from '../hooks/useHeroes'
-import { STARTER_CLASSES, PERSONALITIES, isRecovering } from 'shared-types'
-import type { HeroRecord, Personality } from 'shared-types'
+import { isRecovering } from 'shared-types'
+import type { HeroRecord, Personality, Profession } from 'shared-types'
+import { setToken, setHeroIds } from '../session'
+import { SimpleQuestHUD } from 'simplequest-hud'
+import type { CharacterChangeData } from 'simplequest-hud'
+import { useContent } from '../hooks/useContent'
 
-type Props = { onConnect: (token: string, heroIds: string[]) => void }
 type View = 'auth' | 'roster' | 'create'
 
-export function ConnectScreen(props: Props) {
+export function ConnectScreen() {
+  const navigate = useNavigate()
   const [view, setView] = createSignal<View>('auth')
-  const [token, setToken] = createSignal<string | null>(null)
+  const [accessToken, setAccessToken] = createSignal<string | null>(null)
   const [email, setEmail] = createSignal('')
   const [password, setPassword] = createSignal('')
   const [authError, setAuthError] = createSignal<string | null>(null)
   const [authLoading, setAuthLoading] = createSignal(false)
   const [selected, setSelected] = createSignal<Set<string>>(new Set())
-  const [heroName, setHeroName] = createSignal('')
-  const [heroClass, setHeroClass] = createSignal(STARTER_CLASSES[0].name)
-  const [heroPersonality, setHeroPersonality] = createSignal<Personality>(PERSONALITIES[0])
+  const [createCharacter, setCreateCharacter] = createSignal<CharacterChangeData>({
+    name: '', class: '', profession: '', personality: '', die: 'd6',
+  })
   const [createError, setCreateError] = createSignal<string | null>(null)
 
-  const { heroes, loading: heroesLoading, createHero } = createHeroes(token)
+  const { heroes, loading: heroesLoading, createHero } = createHeroes(accessToken)
+  const content = useContent()
 
   onMount(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) {
-        setToken(data.session.access_token)
+        setAccessToken(data.session.access_token)
         setView('roster')
       }
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) setToken(session.access_token)
+      if (session) setAccessToken(session.access_token)
     })
     onCleanup(() => subscription.unsubscribe())
   })
@@ -46,9 +52,9 @@ export function ConnectScreen(props: Props) {
         setAuthLoading(false)
         return
       }
-      setToken(signUpData.session.access_token)
+      setAccessToken(signUpData.session.access_token)
     } else {
-      setToken(data.session.access_token)
+      setAccessToken(data.session.access_token)
     }
     setAuthLoading(false)
     setView('roster')
@@ -56,10 +62,18 @@ export function ConnectScreen(props: Props) {
 
   async function handleCreateHero() {
     setCreateError(null)
-    if (!heroName().trim()) { setCreateError('Name is required'); return }
+    const c = createCharacter()
+    if (!c.name.trim()) { setCreateError('Enter a name in the character sheet above'); return }
+    if (!c.class) { setCreateError('Select a class in the character sheet above'); return }
+    if (!c.personality) { setCreateError('Select a personality in the character sheet above'); return }
+    if (!c.profession) { setCreateError('Select a profession in the character sheet above'); return }
     try {
-      await createHero({ name: heroName().trim(), className: heroClass(), personality: heroPersonality() })
-      setHeroName('')
+      await createHero({
+        name: c.name.trim(),
+        className: c.class,
+        personality: c.personality as Personality,
+        profession: c.profession as Profession,
+      })
       setView('roster')
     } catch (e) {
       setCreateError(e instanceof Error ? e.message : 'Failed to create hero')
@@ -76,9 +90,18 @@ export function ConnectScreen(props: Props) {
   }
 
   function handleEnterInn() {
-    const t = token()
+    const t = accessToken()
     if (!t || selected().size === 0) return
-    props.onConnect(t, [...selected()])
+    setToken(t)
+    setHeroIds([...selected()])
+    navigate('/inn')
+  }
+
+  function handleOpenBuilder() {
+    const t = accessToken()
+    if (!t) return
+    setToken(t)
+    navigate('/build/inn-main')
   }
 
   return (
@@ -98,32 +121,37 @@ export function ConnectScreen(props: Props) {
       </Match>
 
       <Match when={view() === 'create'}>
-        <div style={{ display: 'flex', 'flex-direction': 'column', gap: '12px', 'max-width': '400px', margin: '60px auto' }}>
-          <h2>Create Your First Hero</h2>
-          <input placeholder="Hero name" value={heroName()} onInput={(e) => setHeroName(e.currentTarget.value)} style={{ padding: '8px' }} />
-          <label>
-            Class
-            <select value={heroClass()} onChange={(e) => setHeroClass(e.currentTarget.value)} style={{ 'margin-left': '8px' }}>
-              <For each={STARTER_CLASSES}>
-                {(sc) => <option value={sc.name}>{sc.name} ({sc.die})</option>}
-              </For>
-            </select>
-          </label>
-          <label>
-            Personality
-            <select value={heroPersonality()} onChange={(e) => setHeroPersonality(e.currentTarget.value as Personality)} style={{ 'margin-left': '8px' }}>
-              <For each={PERSONALITIES}>
-                {(p) => <option value={p}>{p}</option>}
-              </For>
-            </select>
-          </label>
-          <Show when={createError()}>
-            <p style={{ color: 'red' }}>{createError()}</p>
-          </Show>
-          <button onClick={handleCreateHero} style={{ padding: '10px 20px' }}>Create Hero</button>
-          <Show when={heroes().length > 0}>
-            <button onClick={() => setView('roster')} style={{ padding: '8px 16px' }}>Back to Roster</button>
-          </Show>
+        <div style={{
+          display: 'flex', 'flex-direction': 'column',
+          height: '100vh', 'max-width': '440px', margin: '0 auto',
+        }}>
+          <div style={{ flex: '1', 'min-height': '0', overflow: 'hidden' }}>
+            <SimpleQuestHUD
+              content={JSON.stringify(content() ?? {})}
+              onCharacterChange={(data) => setCreateCharacter(data)}
+            />
+          </div>
+          <div style={{
+            'flex-shrink': '0',
+            padding: '12px 16px',
+            'border-top': '1px solid #e0e0e0',
+            display: 'flex',
+            'flex-direction': 'column',
+            gap: '8px',
+            background: '#fff',
+          }}>
+            <Show when={createError()}>
+              <p style={{ color: 'red', margin: '0', 'font-size': '13px' }}>{createError()}</p>
+            </Show>
+            <button onClick={handleCreateHero} style={{ padding: '10px 20px', 'font-size': '15px', cursor: 'pointer' }}>
+              Create Hero
+            </button>
+            <Show when={heroes().length > 0}>
+              <button onClick={() => setView('roster')} style={{ padding: '8px 16px', cursor: 'pointer' }}>
+                Back to Roster
+              </button>
+            </Show>
+          </div>
         </div>
       </Match>
 
@@ -169,6 +197,9 @@ export function ConnectScreen(props: Props) {
             <button onClick={() => setView('create')} style={{ padding: '8px 16px' }}>+ New Hero</button>
             <button onClick={handleEnterInn} disabled={selected().size === 0} style={{ padding: '10px 20px', opacity: selected().size === 0 ? 0.5 : 1 }}>
               Enter The Inn ({selected().size} selected)
+            </button>
+            <button onClick={handleOpenBuilder} style={{ padding: '10px 20px' }}>
+              Builder
             </button>
           </div>
           <Show when={heroes().filter((h) => !isRecovering(h)).length === 0 && heroes().length > 0}>

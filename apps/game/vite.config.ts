@@ -5,5 +5,6 @@ export default defineConfig({
   plugins: [solid()],
   optimizeDeps: {
     include: ['@babylonjs/core'],
+    exclude: ['simple-quest', 'playsets-board'],
   },
 })

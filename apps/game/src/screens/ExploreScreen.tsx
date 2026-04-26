@@ -1,11 +1,14 @@
-import { createSignal, Show } from 'solid-js'
-import { THE_INN } from 'shared-types'
-import type { ExploreMap, ExploreToken } from 'shared-types'
+import { createSignal, createMemo, createEffect, on, For, Show } from 'solid-js'
+import { THE_INN, generateSceneFromInn, getReachableCells, getMoveCost, getFrontCell } from 'shared-types'
+import type { ExploreMap, ExploreToken, SceneData, AbilityDefinition, Position } from 'shared-types'
 import type { Panel } from 'click-comics'
 import { createExploreRoom } from '../hooks/useExploreRoom'
 import { ComicPlayer } from '../components/ComicPlayer'
-import { SimpleQuestHUD, sampleContent } from 'simplequest-hud'
+import { SimpleQuestHUD } from 'simplequest-hud'
+import { useContent } from '../hooks/useContent'
 import { PlaysetBoard } from 'playsets'
+import { token, heroIds } from '../session'
+import { useNavigate } from '@solidjs/router'
 
 const NPC_PANELS: Record<string, Panel[]> = {
   innkeeper: [
@@ -23,34 +26,212 @@ const DOOR_PANELS: Panel[] = [
   { speaker: 'The Door', text: 'Biome exploration is coming in the next update.' },
 ]
 
-interface ExploreScreenProps {
-  token?: string | null
-  heroIds?: string[]
-}
+const SIDEBAR_WIDTH = 380
 
-export function ExploreScreen(props: ExploreScreenProps) {
-  const state = createExploreRoom(
-    () => props.token ?? null,
-    () => props.heroIds ?? [],
-  )
-  const [showSheet, setShowSheet] = createSignal(false)
-  const contentJson = JSON.stringify(sampleContent)
+export function ExploreScreen() {
+  const state = createExploreRoom(token, heroIds)
+  const navigate = useNavigate()
+  const [selectedAbility, setSelectedAbility] = createSignal<AbilityDefinition | null>(null)
+  const [usedAbilityTitles, setUsedAbilityTitles] = createSignal<string[]>([])
+  const [dragPos, setDragPos] = createSignal<Position | null>(null)
+
+  type Doober = { id: string; text: string; color: string }
+  const [doobers, setDoobers] = createSignal<Doober[]>([])
+
+  // Clear used abilities when the player's energy resets to max — that only happens at turn start
+  createEffect(on(
+    () => myActor()?.energy ?? -1,
+    (energy) => {
+      const actor = myActor()
+      if (actor && energy === actor.maxEnergy) setUsedAbilityTitles([])
+    }
+  ))
+
+  // Spawn doobers when an action result arrives
+  createEffect(on(
+    () => state.actionResult(),
+    (result) => {
+      if (!result) return
+      const cs = state.combatState()
+      const newDoobers: Doober[] = []
+      for (const [actorId, delta] of Object.entries(result.hpDeltas)) {
+        if (delta === 0) continue
+        const actor = cs?.actors[actorId]
+        const name = actor?.name ?? actorId
+        const rollText = result.rolls.length > 0 ? ` [${result.rolls.map((r) => r.total).join('+')}]` : ''
+        newDoobers.push({
+          id: `${Date.now()}-${actorId}-${Math.random()}`,
+          text: delta < 0 ? `${name} ${delta}${rollText}` : `${name} +${delta}${rollText}`,
+          color: delta < 0 ? '#f66' : '#6f6',
+        })
+      }
+      if (newDoobers.length === 0) return
+      setDoobers((prev) => [...prev, ...newDoobers])
+      const ids = new Set(newDoobers.map((d) => d.id))
+      setTimeout(() => setDoobers((prev) => prev.filter((d) => !ids.has(d.id))), 2500)
+    }
+  ))
+
+  const sceneJson = createMemo(() => {
+    const sd: SceneData | null = state.sceneData()
+    if (sd) return JSON.stringify(sd)
+    return JSON.stringify(generateSceneFromInn(THE_INN))
+  })
+  const sqContent = useContent()
+  const contentJson = () => JSON.stringify(sqContent() ?? {})
+
+  const myHeroId = (): string | null => {
+    const cs = state.combatState()
+    if (!cs) return null
+    const playerActors = Object.values(cs.actors).filter((a) => !a.isNPC)
+    // Match by hero ID from session — most reliable
+    const ids = heroIds()
+    if (ids.length > 0) {
+      const byId = playerActors.find((a) => ids.includes(a.id))
+      if (byId) return byId.id
+    }
+    // Fallback: initial position match
+    const myPos = state.myPosition()
+    if (myPos) {
+      const byPos = playerActors.find((a) => a.position.x === myPos.x && a.position.y === myPos.y)
+      if (byPos) return byPos.id
+    }
+    // Last resort: only player in this combat (single-player)
+    if (playerActors.length === 1) return playerActors[0].id
+    return null
+  }
+
+  const isMyTurn = (): boolean => {
+    const cs = state.combatState()
+    if (!cs) return false
+    const heroId = myHeroId()
+    return cs.turnQueue[cs.currentActorIndex] === heroId
+  }
+
+  const myActor = () => {
+    const cs = state.combatState()
+    const heroId = myHeroId()
+    if (!cs || !heroId) return null
+    return cs.actors[heroId] ?? null
+  }
+
+  // Build character data for the HUD — prefer heroState (full data), fall back to combat actor
   const characterJson = () => {
+    const actor = myActor()
     const h = state.heroState()
-    return h ? JSON.stringify(h) : ''
+
+    if (actor) {
+      const energyArray = Array(10).fill(false).map((_, i) => i < actor.energy)
+      const base = h ?? {
+        name: actor.name,
+        class: actor.characterClass,
+        personality: actor.personality,
+        profession: '',
+        die: actor.die,
+      }
+      const cs = state.combatState()!
+      return JSON.stringify({
+        ...base,
+        hp: actor.hp,
+        energy: energyArray,
+        combat: 'inCombat' as const,
+        round: cs.round,
+        selectedAbility: selectedAbility()?.name ?? null,
+        usedAbilities: usedAbilityTitles(),
+      })
+    }
+
+    if (h) return JSON.stringify(h)
+    return ''
+  }
+
+  const moveHighlights = createMemo((): Position[] => {
+    if (!isMyTurn()) return []
+    const actor = myActor()
+    if (!actor) return []
+    return getReachableCells(actor.position, THE_INN.walls, actor.energy)
+  })
+
+  const abilityHighlights = createMemo((): Position[] => {
+    const ability = selectedAbility()
+    const cs = state.combatState()
+    if (!ability || !cs) return []
+    const actor = myActor()
+    if (!actor) return []
+    return Object.values(cs.actors)
+      .filter((a) => a.isNPC && a.hp > 0)
+      .map((a) => a.position)
+  })
+
+  const highlights = createMemo(() => {
+    const dp = dragPos()
+    if (state.combatState()) {
+      const ability = selectedAbility()
+      const base = ability
+        ? abilityHighlights().map((p) => ({ x: p.x, y: p.y, kind: 'ability' as const }))
+        : moveHighlights().map((p) => ({ x: p.x, y: p.y, kind: 'move' as const }))
+      if (dp) return [...base, { x: dp.x, y: dp.y, kind: 'target' as const }]
+      return base
+    }
+    if (!dp) return []
+    // Explore-mode drag: determine highlight kind for drop position
+    const isDialog = state.npcs().some((npc) => {
+      const front = getFrontCell({ x: npc.x, y: npc.y }, npc.direction)
+      return dp.x === front.x && dp.y === front.y
+    }) || state.doors().some((d) => Math.abs(dp.x - d.x) + Math.abs(dp.y - d.y) === 1)
+    const isEncounter = Object.values(state.enemies()).some(
+      (e) => Math.abs(dp.x - e.x) + Math.abs(dp.y - e.y) <= 3
+    )
+    const kind = (isEncounter ? 'encounter' : isDialog ? 'dialog' : 'drop') as 'encounter' | 'dialog' | 'drop'
+    return [{ x: dp.x, y: dp.y, kind }]
+  })
+
+  function handleAbilityActivate(title: string) {
+    if (!isMyTurn()) return
+    const actor = myActor()
+    if (!actor) return
+    const ability = actor.abilities.find((a) => a.name === title)
+    if (!ability) return
+    // Toggle: clicking the selected ability deselects it
+    setSelectedAbility((prev) => prev?.id === ability.id ? null : ability)
+  }
+
+  function handleTokenDrag(x: number, y: number) {
+    setDragPos({ x, y })
+  }
+
+  function handleTokenMove(x: number, y: number) {
+    setDragPos(null)
+    const cs = state.combatState()
+    if (cs && isMyTurn()) {
+      const actor = myActor()
+      if (!actor) return
+      const cost = getMoveCost(actor.position, { x, y }, THE_INN.walls)
+      if (cost !== null && cost <= actor.energy) {
+        state.sendAction({ type: 'move', actorId: actor.id, destination: { x, y } })
+      }
+      return
+    }
+    state.move({ x, y })
   }
 
   function handleCellClick(x: number, y: number) {
-    const pos = state.myPosition()
-    if (!pos) return
-    const isNpc = state.npcs().some((n) => n.x === x && n.y === y)
-    const isDoor = state.doors().some((d) => d.x === x && d.y === y)
-    const dist = Math.abs(pos.x - x) + Math.abs(pos.y - y)
-    if ((isNpc || isDoor) && dist === 1) {
-      state.interact()
-    } else {
-      state.move({ x, y })
+    const cs = state.combatState()
+    if (cs && isMyTurn()) {
+      const ability = selectedAbility()
+      if (ability) {
+        const actor = myActor()
+        if (!actor) return
+        const target = Object.values(cs.actors).find((a) => a.position.x === x && a.position.y === y)
+        if (target && target.isNPC && target.hp > 0) {
+          state.sendAction({ type: 'ability', actorId: actor.id, ability, targetIds: [target.id] })
+          setUsedAbilityTitles((prev) => [...prev, ability.name])
+          setSelectedAbility(null)
+        }
+      }
+      return
     }
+    // Explore mode: clicks do nothing — drag to move, interaction triggers on landing
   }
 
   const exploreMap = (): ExploreMap => {
@@ -61,18 +242,26 @@ export function ExploreScreen(props: ExploreScreenProps) {
         id,
         label: id,
         isMe: id === state.mySessionId(),
+        direction: p.direction,
       })),
       ...state.npcs().map((n) => ({
         x: n.x, y: n.y,
         type: 'npc' as const,
         id: n.id,
         label: n.name,
+        direction: n.direction,
       })),
       ...state.doors().map((d) => ({
         x: d.x, y: d.y,
         type: 'door' as const,
         id: d.id,
         label: d.label,
+      })),
+      ...Object.values(state.enemies()).map((e) => ({
+        x: e.x, y: e.y,
+        type: 'enemy' as const,
+        id: e.id,
+        label: e.name,
       })),
     ]
     return { walls: THE_INN.walls, tokens }
@@ -86,48 +275,243 @@ export function ExploreScreen(props: ExploreScreenProps) {
     return null
   }
 
+  const encounterPanels = (): Panel[] | null => {
+    const ev = state.encounter()
+    if (!ev) return null
+    return [{ speaker: ev.enemyName, text: 'Blocks your path! Combat coming soon.' }]
+  }
+
+  const currentCombatActor = createMemo(() => {
+    const cs = state.combatState()
+    if (!cs) return null
+    return cs.actors[cs.turnQueue[cs.currentActorIndex]] ?? null
+  })
+
   return (
     <Show when={!state.error()} fallback={<div style={{ padding: '20px', color: 'red' }}>Connection error: {state.error()}</div>}>
-      <Show when={state.connected()} fallback={<div style={{ padding: '20px' }}>Connecting to The Inn…</div>}>
-        <div style={{ display: 'flex', 'flex-direction': 'column', 'align-items': 'center', padding: '20px', background: '#111', 'min-height': '100vh', color: '#fff' }}>
-          <div style={{ display: 'flex', gap: '12px', 'margin-bottom': '16px', 'align-items': 'center' }}>
-            <h2 style={{ margin: '0' }}>The Inn</h2>
-            <button
-              onClick={() => setShowSheet((v) => !v)}
-              style={{ padding: '4px 12px', 'font-size': '12px', cursor: 'pointer' }}
-            >
-              {showSheet() ? 'Hide Sheet' : 'Character Sheet'}
-            </button>
+      <Show when={state.connected()} fallback={<div style={{ padding: '20px', background: '#111', color: '#fff', 'min-height': '100vh' }}>Connecting to The Inn…</div>}>
+        <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden' }}>
+
+          {/* Board — fills remaining space left of sidebar */}
+          <div style={{ position: 'relative', flex: '1 1 0', 'min-width': 0 }}>
+            <PlaysetBoard
+              mode="explore"
+              roomId="inn"
+              exploreMap={exploreMap()}
+              sceneJson={sceneJson()}
+              combatState={state.combatState() ?? undefined}
+              myActorId={myHeroId() ?? undefined}
+              highlights={highlights()}
+              onCellClick={handleCellClick}
+              onTokenMove={handleTokenMove}
+              onTokenDrag={handleTokenDrag}
+            />
+
+            {/* Turn indicator */}
+            <Show when={currentCombatActor()}>
+              {(current) => (
+                <div style={{
+                  position: 'absolute', top: '12px', left: '12px', 'z-index': '10',
+                  background: 'rgba(5,10,5,0.85)', border: '1px solid rgba(255,255,255,0.1)',
+                  'border-radius': '6px', padding: '6px 12px', 'font-size': '11px', color: '#aaa',
+                }}>
+                  <span>{'⚔'} {current().name}{'\''}s turn {'·'} Round {state.combatState()?.round ?? 0}</span>
+                </div>
+              )}
+            </Show>
+
+            {/* Targeting prompt */}
+            <Show when={selectedAbility()}>
+              <div style={{
+                position: 'absolute', top: '16px', left: '50%', transform: 'translateX(-50%)',
+                'z-index': '20', background: 'rgba(5,15,5,0.93)',
+                border: '1px solid rgba(100,220,100,0.35)', 'border-radius': '8px',
+                padding: '10px 20px', display: 'flex', 'align-items': 'center', gap: '12px',
+              }}>
+                <span style={{ color: '#9f9', 'font-size': '13px', 'font-weight': '600' }}>
+                  Select a target for {selectedAbility()!.name}
+                </span>
+                <button
+                  onClick={() => setSelectedAbility(null)}
+                  style={{
+                    background: 'none', border: '1px solid rgba(255,255,255,0.15)',
+                    'border-radius': '4px', color: '#888', cursor: 'pointer',
+                    'font-size': '11px', padding: '2px 8px',
+                  }}
+                >
+                  cancel
+                </button>
+              </div>
+            </Show>
+
+            {/* Action error toast */}
+            <Show when={state.actionError()}>
+              <div style={{
+                position: 'absolute', bottom: '60px', left: '50%', transform: 'translateX(-50%)',
+                'z-index': '30', background: 'rgba(180,40,40,0.92)', color: '#fcc',
+                'border-radius': '6px', padding: '8px 18px', 'font-size': '12px',
+                border: '1px solid rgba(255,100,100,0.3)', 'pointer-events': 'none',
+              }}>
+                {state.actionError()}
+              </div>
+            </Show>
+
+            {/* Doobers — floating damage/heal numbers */}
+            <Show when={doobers().length > 0}>
+              <style>{`
+                @keyframes doober-rise {
+                  0%   { opacity: 1; transform: translateY(0) scale(1); }
+                  60%  { opacity: 1; }
+                  100% { opacity: 0; transform: translateY(-80px) scale(0.8); }
+                }
+                .doober-item { animation: doober-rise 2.5s ease-out forwards; pointer-events: none; }
+              `}</style>
+              <div style={{
+                position: 'absolute', top: '50%', left: '50%',
+                transform: 'translate(-50%, -50%)',
+                'z-index': '25', display: 'flex', 'flex-direction': 'column',
+                gap: '6px', 'align-items': 'center', 'pointer-events': 'none',
+              }}>
+                <For each={doobers()}>
+                  {(d) => (
+                    <div class="doober-item" style={{
+                      color: d.color, 'font-size': '20px', 'font-weight': '800',
+                      'text-shadow': '0 2px 6px rgba(0,0,0,0.9)', 'white-space': 'nowrap',
+                    }}>
+                      {d.text}
+                    </div>
+                  )}
+                </For>
+              </div>
+            </Show>
+
+            {/* Join combat offer */}
+            <Show when={state.joinOffer()}>
+              <div style={{
+                position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
+                'z-index': '20', background: 'rgba(5,10,5,0.95)', border: '1px solid rgba(255,200,50,0.3)',
+                'border-radius': '8px', padding: '20px 28px', 'text-align': 'center',
+              }}>
+                <div style={{ color: '#fa0', 'font-size': '14px', 'margin-bottom': '12px' }}>A battle is nearby!</div>
+                <div style={{ display: 'flex', gap: '8px', 'justify-content': 'center' }}>
+                  <button onClick={state.joinCombat} style={{ padding: '6px 16px', background: 'rgba(80,160,80,0.2)', color: '#6f6', border: '1px solid #3a5a3a', 'border-radius': '4px', cursor: 'pointer' }}>Join</button>
+                  <button onClick={state.dismissJoinOffer} style={{ padding: '6px 16px', background: 'rgba(10,10,10,0.5)', color: '#666', border: '1px solid #333', 'border-radius': '4px', cursor: 'pointer' }}>Ignore</button>
+                </div>
+              </div>
+            </Show>
+
+            {/* Combat results overlay */}
+            <Show when={state.combatResult()}>
+              <div style={{
+                position: 'absolute', inset: '0', 'z-index': '30', background: 'rgba(0,0,0,0.7)',
+                display: 'flex', 'align-items': 'center', 'justify-content': 'center',
+              }}>
+                <div style={{ background: 'rgba(5,10,5,0.97)', border: '1px solid rgba(255,255,255,0.1)', 'border-radius': '10px', padding: '32px 40px', 'text-align': 'center', 'max-width': '360px' }}>
+                  <Show when={state.combatResult() === 'win'}>
+                    <div style={{ color: '#6f6', 'font-size': '22px', 'margin-bottom': '8px' }}>Victory!</div>
+                    <div style={{ color: '#888', 'font-size': '13px', 'margin-bottom': '20px' }}>The enemy has been defeated.</div>
+                    <button onClick={state.dismissCombatResult} style={{ padding: '8px 24px', background: 'rgba(80,160,80,0.2)', color: '#6f6', border: '1px solid #3a5a3a', 'border-radius': '4px', cursor: 'pointer' }}>Continue</button>
+                  </Show>
+                  <Show when={state.combatResult() === 'lose'}>
+                    <div style={{ color: '#f66', 'font-size': '22px', 'margin-bottom': '8px' }}>Defeated</div>
+                    <div style={{ color: '#888', 'font-size': '13px', 'margin-bottom': '8px' }}>Your heroes need time to recover.</div>
+                    <Show when={state.recoveryEndsAt()}>
+                      <div style={{ color: '#666', 'font-size': '11px', 'margin-bottom': '16px' }}>
+                        Available again: {new Date(state.recoveryEndsAt()!).toLocaleTimeString()}
+                      </div>
+                    </Show>
+                    <button
+                      onClick={() => { state.dismissCombatResult(); navigate('/') }}
+                      style={{ padding: '8px 24px', background: 'rgba(160,50,50,0.2)', color: '#f88', border: '1px solid #5a3a3a', 'border-radius': '4px', cursor: 'pointer' }}
+                    >
+                      Return to Roster
+                    </button>
+                  </Show>
+                </div>
+              </div>
+            </Show>
+
+            {/* Interaction comic panel */}
+            <Show when={interactionPanels()}>
+              {(panels) => (
+                <div style={{ position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', 'max-width': '480px', width: '100%', 'z-index': '10' }}>
+                  <ComicPlayer panels={panels()} onComplete={state.dismissInteraction} />
+                </div>
+              )}
+            </Show>
+
+            {/* Encounter comic panel */}
+            <Show when={encounterPanels()}>
+              {(panels) => (
+                <div style={{ position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', 'max-width': '480px', width: '100%', 'z-index': '10' }}>
+                  <ComicPlayer panels={panels()} onComplete={state.dismissEncounter} />
+                </div>
+              )}
+            </Show>
+
+            {/* Hint text */}
+            <div style={{ position: 'absolute', bottom: '10px', left: '10px', 'font-size': '11px', color: 'rgba(255,255,255,0.3)', 'z-index': '10', 'pointer-events': 'none' }}>
+              Drag your token to move
+            </div>
           </div>
 
-          <div style={{ 'font-size': '11px', color: '#666', 'margin-bottom': '8px' }}>
-            Click an adjacent NPC or door to interact · Click a floor tile to move
-          </div>
-
-          <div style={{ display: 'flex', gap: '20px', 'align-items': 'flex-start', width: '100%', 'justify-content': 'center' }}>
-            <div style={{ width: '720px', height: '480px', 'flex-shrink': '0' }}>
-              <PlaysetBoard
-                mode="explore"
-                roomId="inn"
-                exploreMap={exploreMap()}
-                onCellClick={handleCellClick}
+          {/* Right sidebar — SimpleQuest HUD + combat controls */}
+          <div style={{
+            width: `${SIDEBAR_WIDTH}px`,
+            'flex-shrink': '0',
+            height: '100vh',
+            overflow: 'auto',
+            background: 'rgba(8,12,8,0.97)',
+            'border-left': '1px solid rgba(255,255,255,0.07)',
+            display: 'flex',
+            'flex-direction': 'column',
+          }}>
+            {/* SimpleQuest HUD — live character status + ability cards; scrolls internally */}
+            <div style={{ flex: '1 1 0', overflow: 'hidden', display: 'flex', 'flex-direction': 'column', 'min-height': '0' }}>
+              <SimpleQuestHUD
+                content={contentJson()}
+                character={characterJson()}
+                locked={true}
+                onAbilityActivate={handleAbilityActivate}
               />
             </div>
 
-            <Show when={showSheet()}>
-              <div style={{ width: '480px', 'flex-shrink': '0' }}>
-                <SimpleQuestHUD content={contentJson} character={characterJson()} />
+            {/* Combat controls — only shown during combat on player's turn */}
+            <Show when={state.combatState() && isMyTurn()}>
+              <div style={{
+                'flex-shrink': '0',
+                padding: '10px 14px',
+                'border-top': '1px solid rgba(255,255,255,0.07)',
+                display: 'flex',
+                'flex-direction': 'column',
+                gap: '8px',
+              }}>
+                <Show when={selectedAbility()}>
+                  <div style={{ 'font-size': '11px', color: '#6f6', padding: '4px 0' }}>
+                    {'▶'} {selectedAbility()!.name} selected — click an enemy to attack
+                    <button
+                      onClick={() => setSelectedAbility(null)}
+                      style={{ 'margin-left': '8px', background: 'none', border: 'none', color: '#888', cursor: 'pointer', 'font-size': '11px' }}
+                    >
+                      cancel
+                    </button>
+                  </div>
+                </Show>
+                <button
+                  onClick={() => { setSelectedAbility(null); state.endTurn() }}
+                  style={{
+                    padding: '8px', 'font-size': '12px', cursor: 'pointer',
+                    background: 'rgba(10,10,30,0.9)', color: '#aaf',
+                    border: '1px solid rgba(150,150,255,0.25)', 'border-radius': '5px',
+                    'font-weight': '600',
+                  }}
+                >
+                  End Turn
+                </button>
               </div>
             </Show>
           </div>
 
-          <Show when={interactionPanels()}>
-            {(panels) => (
-              <div style={{ 'margin-top': '20px', 'max-width': '480px', width: '100%' }}>
-                <ComicPlayer panels={panels()} onComplete={state.dismissInteraction} />
-              </div>
-            )}
-          </Show>
         </div>
       </Show>
     </Show>

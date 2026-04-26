@@ -22,6 +22,7 @@ export interface ActorState {
   position: Position
   statusEffects: string[]
   isNPC: boolean
+  isGhost?: boolean
   abilities: AbilityDefinition[]
 }
 
@@ -57,8 +58,11 @@ export interface CombatState {
   log: string[]
   isOver: boolean
   winningSide?: 'players' | 'npcs'
+  activeEnemyIds: string[]
 }
 
 export * from './hero-persistence'
 export * from './inn-map'
 export * from './explore-map'
+export * from './scene-data'
+export * from './combat-bfs'

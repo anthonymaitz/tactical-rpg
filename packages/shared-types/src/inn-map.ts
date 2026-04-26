@@ -1,3 +1,5 @@
+export type FacingDir = 'n' | 'e' | 's' | 'w'
+
 export type NpcRole = 'innkeeper' | 'blacksmith' | 'doorkeeper'
 
 export type InnNpc = {
@@ -6,6 +8,24 @@ export type InnNpc = {
   role: NpcRole
   x: number
   y: number
+  direction: FacingDir
+}
+
+export function getFrontCell(pos: { x: number; y: number }, direction: string): { x: number; y: number } {
+  switch (direction) {
+    case 'n': return { x: pos.x, y: pos.y - 1 }
+    case 's': return { x: pos.x, y: pos.y + 1 }
+    case 'e': return { x: pos.x + 1, y: pos.y }
+    case 'w': return { x: pos.x - 1, y: pos.y }
+    default:  return { x: pos.x, y: pos.y + 1 }
+  }
+}
+
+export function getMovementDirection(from: { x: number; y: number }, to: { x: number; y: number }): FacingDir {
+  const dx = to.x - from.x
+  const dy = to.y - from.y
+  if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? 'e' : 'w'
+  return dy >= 0 ? 's' : 'n'
 }
 
 export type InnDoor = {
@@ -53,9 +73,9 @@ export const THE_INN: InnMap = {
     [W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W],
   ],
   npcs: [
-    { id: 'innkeeper',         name: 'Innkeeper',        role: 'innkeeper',  x: 10, y: 2  },
-    { id: 'blacksmith',        name: 'Blacksmith',        role: 'blacksmith', x: 4,  y: 7  },
-    { id: 'doorkeeper-forest', name: 'Forest Doorkeeper', role: 'doorkeeper', x: 16, y: 7  },
+    { id: 'innkeeper',         name: 'Innkeeper',        role: 'innkeeper',  x: 10, y: 2,  direction: 's' },
+    { id: 'blacksmith',        name: 'Blacksmith',        role: 'blacksmith', x: 4,  y: 7,  direction: 'e' },
+    { id: 'doorkeeper-forest', name: 'Forest Doorkeeper', role: 'doorkeeper', x: 16, y: 7,  direction: 'w' },
   ],
   doors: [
     { id: 'door-forest', biomeId: 'verdant-forest', label: 'Verdant Forest', x: 16, y: 12 },

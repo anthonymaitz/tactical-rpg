@@ -1,7 +1,16 @@
 // server/src/db/hero-service.ts
 import { supabase } from './supabase'
 import { applyLevelUp, getRecoveryEndsAt } from './hero-logic'
-import type { HeroRecord, GearSlots, StarterClass } from 'shared-types'
+import type { HeroRecord, GearSlots, AbilityDefinition } from 'shared-types'
+
+type NewHeroData = {
+  className: string
+  die: string
+  maxHp: number
+  maxEnergy: number
+  speed: number
+  abilities: AbilityDefinition[]
+}
 
 function toHeroRecord(row: Record<string, unknown>): HeroRecord {
   return {
@@ -10,6 +19,7 @@ function toHeroRecord(row: Record<string, unknown>): HeroRecord {
     name: row.name as string,
     characterClass: row.character_class as string,
     personality: row.personality as HeroRecord['personality'],
+    profession: row.profession as HeroRecord['profession'],
     die: row.die as HeroRecord['die'],
     level: row.level as number,
     xp: row.xp as number,
@@ -47,21 +57,23 @@ export const heroService = {
   async createHero(
     userId: string,
     name: string,
-    starterClass: StarterClass,
-    personality: HeroRecord['personality']
+    hero: NewHeroData,
+    personality: HeroRecord['personality'],
+    profession: string
   ): Promise<HeroRecord> {
     const { data, error } = await supabase
       .from('heroes')
       .insert({
         user_id: userId,
         name,
-        character_class: starterClass.name,
+        character_class: hero.className,
         personality,
-        die: starterClass.die,
-        max_hp: starterClass.maxHp,
-        max_energy: starterClass.maxEnergy,
-        speed: starterClass.speed,
-        abilities: starterClass.abilities,
+        profession,
+        die: hero.die,
+        max_hp: hero.maxHp,
+        max_energy: hero.maxEnergy,
+        speed: hero.speed,
+        abilities: hero.abilities,
       })
       .select()
       .single()

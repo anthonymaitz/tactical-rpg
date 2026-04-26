@@ -52,6 +52,7 @@ describe('PlaysetBoard', () => {
       round: 1,
       log: [],
       isOver: false,
+      activeEnemyIds: [],
     }
     render(() => <PlaysetBoard mode="combat" roomId="room1" combatState={combatState} />)
     expect(document.querySelector('canvas')).not.toBeNull()

@@ -14,6 +14,7 @@ const baseHero: HeroRecord = {
   name: 'Aldric',
   characterClass: 'Fighter',
   personality: 'righteous',
+  profession: 'soldier',
   die: 'd8',
   level: 1,
   xp: 0,

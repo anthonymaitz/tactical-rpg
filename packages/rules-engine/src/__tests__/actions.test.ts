@@ -28,6 +28,7 @@ const makeState = (actors: Record<string, ActorState>): CombatState => ({
   round: 1,
   log: [],
   isOver: false,
+  activeEnemyIds: [],
 })
 
 const strikeAbility: AbilityDefinition = {
