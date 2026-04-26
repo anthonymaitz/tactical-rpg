@@ -38,14 +38,12 @@ export function ExploreScreen() {
   type Doober = { id: string; text: string; color: string }
   const [doobers, setDoobers] = createSignal<Doober[]>([])
 
-  // Clear used abilities only when the turn TRANSITIONS to this player — not on every combat state update
+  // Clear used abilities when the player's energy resets to max — that only happens at turn start
   createEffect(on(
-    () => { const cs = state.combatState(); return cs ? cs.turnQueue[cs.currentActorIndex] : null },
-    (currentActorId, prevActorId) => {
-      const heroId = myHeroId()
-      if (heroId && currentActorId === heroId && prevActorId !== heroId) {
-        setUsedAbilityTitles([])
-      }
+    () => myActor()?.energy ?? -1,
+    (energy) => {
+      const actor = myActor()
+      if (actor && energy === actor.maxEnergy) setUsedAbilityTitles([])
     }
   ))
 
