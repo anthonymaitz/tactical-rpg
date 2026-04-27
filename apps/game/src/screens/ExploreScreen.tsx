@@ -10,6 +10,15 @@ import { PlaysetBoard } from 'playsets'
 import { token, heroIds } from '../session'
 import { useNavigate } from '@solidjs/router'
 
+function classToSpriteId(cls?: string): string | undefined {
+  if (!cls) return undefined
+  const c = cls.toLowerCase()
+  if (c === 'fighter' || c === 'warrior') return '/assets/sprites/tokens/warrior.svg'
+  if (c === 'mage' || c === 'wizard') return '/assets/sprites/tokens/mage.svg'
+  if (c === 'rogue' || c === 'thief') return '/assets/sprites/tokens/rogue.svg'
+  return undefined
+}
+
 const NPC_PANELS: Record<string, Panel[]> = {
   innkeeper: [
     { speaker: 'Innkeeper', text: 'Welcome back! Rest up — your heroes are fully restored.' },
@@ -236,14 +245,18 @@ export function ExploreScreen() {
 
   const exploreMap = (): ExploreMap => {
     const tokens: ExploreToken[] = [
-      ...Object.entries(state.players()).map(([id, p]) => ({
-        x: p.x, y: p.y,
-        type: 'player' as const,
-        id,
-        label: id,
-        isMe: id === state.mySessionId(),
-        direction: p.direction,
-      })),
+      ...Object.entries(state.players()).map(([id, p]) => {
+        const isMe = id === state.mySessionId()
+        return {
+          x: p.x, y: p.y,
+          type: 'player' as const,
+          id,
+          label: id,
+          isMe,
+          direction: p.direction,
+          spriteId: isMe ? classToSpriteId(state.heroState()?.class) : undefined,
+        }
+      }),
       ...state.npcs().map((n) => ({
         x: n.x, y: n.y,
         type: 'npc' as const,

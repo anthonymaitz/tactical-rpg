@@ -6,6 +6,15 @@ import { getGridTiles } from './GridRenderer'
 import type { PlaysetBoardProps } from './types'
 import { MeshBuilder, Vector3 } from '@babylonjs/core'
 
+function classToSpriteId(cls?: string): string | undefined {
+  if (!cls) return undefined
+  const c = cls.toLowerCase()
+  if (c === 'fighter' || c === 'warrior') return '/assets/sprites/tokens/warrior.svg'
+  if (c === 'mage' || c === 'wizard') return '/assets/sprites/tokens/mage.svg'
+  if (c === 'rogue' || c === 'thief') return '/assets/sprites/tokens/rogue.svg'
+  return undefined
+}
+
 declare module 'solid-js' {
   namespace JSX {
     interface IntrinsicElements {
@@ -60,6 +69,7 @@ function ExploreBoard(props: PlaysetBoardProps) {
         isMe: a.id === props.myActorId,
         label: a.name,
         isGhost: a.isGhost ?? false,
+        spriteId: a.isNPC ? undefined : classToSpriteId(a.characterClass),
       }))
       return JSON.stringify([...bystanders, ...combatants])
     }
@@ -72,6 +82,7 @@ function ExploreBoard(props: PlaysetBoardProps) {
         isMe: t.isMe,
         label: t.label,
         direction: t.direction,
+        spriteId: t.spriteId,
       })),
     )
   })

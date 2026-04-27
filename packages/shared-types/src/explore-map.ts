@@ -8,6 +8,7 @@ export interface ExploreToken {
   label: string
   isMe?: boolean
   direction?: string
+  spriteId?: string
 }
 
 export interface ExploreMap {
