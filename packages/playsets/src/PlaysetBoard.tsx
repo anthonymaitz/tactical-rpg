@@ -114,15 +114,27 @@ function ExploreBoard(props: PlaysetBoardProps) {
       const { direction } = (e as CustomEvent<{ id: string; direction: string }>).detail
       props.onTokenFace?.(direction)
     }
+    function onTokenEmote(e: Event) {
+      const { emote } = (e as CustomEvent<{ id: string; emote: string }>).detail
+      props.onTokenEmote?.(emote)
+    }
+    function onTokenSpeech(e: Event) {
+      const { speech } = (e as CustomEvent<{ id: string; speech: string }>).detail
+      props.onTokenSpeech?.(speech)
+    }
     boardEl.addEventListener('cellclick', onCellClick)
     boardEl.addEventListener('tokenmove', onTokenMove)
     boardEl.addEventListener('tokendrag', onTokenDrag)
     boardEl.addEventListener('tokenface', onTokenFace)
+    boardEl.addEventListener('tokenemote', onTokenEmote)
+    boardEl.addEventListener('tokenspeech', onTokenSpeech)
     onCleanup(() => {
       boardEl.removeEventListener('cellclick', onCellClick)
       boardEl.removeEventListener('tokenmove', onTokenMove)
       boardEl.removeEventListener('tokendrag', onTokenDrag)
       boardEl.removeEventListener('tokenface', onTokenFace)
+      boardEl.removeEventListener('tokenemote', onTokenEmote)
+      boardEl.removeEventListener('tokenspeech', onTokenSpeech)
     })
   })
 

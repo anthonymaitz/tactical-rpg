@@ -32,6 +32,8 @@ export interface PlaysetBoardProps {
   onTokenMove?: (x: number, y: number) => void
   onTokenDrag?: (x: number, y: number) => void
   onTokenFace?: (direction: string) => void
+  onTokenEmote?: (emote: string) => void
+  onTokenSpeech?: (speech: string) => void
   onEncounter?: (e: EncounterEvent) => void
   onAction?: (a: Action) => void
   onBuild?: (e: BuildEvent) => void
