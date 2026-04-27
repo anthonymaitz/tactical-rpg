@@ -125,6 +125,11 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       })
     })
 
+    this.onMessage<{ direction: string }>('FACE', (client, message) => {
+      const player = this.state.players.get(client.sessionId)
+      if (player) player.direction = message.direction
+    })
+
     this.onMessage<{ id: string; x: number; y: number }>('DRAG_UPDATE', (client, message) => {
       this.broadcast('DRAG_UPDATE', message, { except: client })
     })

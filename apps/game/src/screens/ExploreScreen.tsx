@@ -209,6 +209,10 @@ export function ExploreScreen() {
     setDragPos({ x, y })
   }
 
+  function handleTokenFace(direction: string) {
+    state.face(direction)
+  }
+
   function handleTokenMove(x: number, y: number) {
     setDragPos(null)
     const cs = state.combatState()
@@ -323,6 +327,7 @@ export function ExploreScreen() {
               onCellClick={handleCellClick}
               onTokenMove={handleTokenMove}
               onTokenDrag={handleTokenDrag}
+              onTokenFace={handleTokenFace}
             />
 
             {/* Turn indicator */}

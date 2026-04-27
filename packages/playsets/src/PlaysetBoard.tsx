@@ -110,13 +110,19 @@ function ExploreBoard(props: PlaysetBoardProps) {
       const { x, y } = (e as CustomEvent<{ id: string; x: number; y: number }>).detail
       props.onTokenDrag?.(x, y)
     }
+    function onTokenFace(e: Event) {
+      const { direction } = (e as CustomEvent<{ id: string; direction: string }>).detail
+      props.onTokenFace?.(direction)
+    }
     boardEl.addEventListener('cellclick', onCellClick)
     boardEl.addEventListener('tokenmove', onTokenMove)
     boardEl.addEventListener('tokendrag', onTokenDrag)
+    boardEl.addEventListener('tokenface', onTokenFace)
     onCleanup(() => {
       boardEl.removeEventListener('cellclick', onCellClick)
       boardEl.removeEventListener('tokenmove', onTokenMove)
       boardEl.removeEventListener('tokendrag', onTokenDrag)
+      boardEl.removeEventListener('tokenface', onTokenFace)
     })
   })
 
