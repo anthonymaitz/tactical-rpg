@@ -1,6 +1,6 @@
 import { createSignal, onMount, onCleanup } from 'solid-js'
 import { useParams, useNavigate } from '@solidjs/router'
-import { token } from '../session'
+import { supabase } from '../lib/supabase'
 import { fetchScene, upsertScene } from '../services/scene-service'
 import 'playsets-board'
 import type { SceneData } from 'shared-types'
@@ -31,7 +31,8 @@ export default function BuildScreen() {
   let boardEl!: HTMLElement
 
   onMount(async () => {
-    if (!token()) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
       navigate('/')
       return
     }
