@@ -34,6 +34,8 @@ export interface PlaysetBoardProps {
   onTokenFace?: (direction: string) => void
   onTokenEmote?: (emote: string) => void
   onTokenSpeech?: (speech: string) => void
+  onTokenAction?: (action: string) => void
+  onRef?: (el: HTMLElement) => void
   onEncounter?: (e: EncounterEvent) => void
   onAction?: (a: Action) => void
   onBuild?: (e: BuildEvent) => void

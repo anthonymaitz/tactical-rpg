@@ -44,6 +44,9 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
   const [joinOffer, setJoinOffer] = createSignal(false)
   const [actionError, setActionError] = createSignal<string | null>(null)
   const [actionResult, setActionResult] = createSignal<ActionResult | null>(null)
+  const [emoteEvent, setEmoteEvent] = createSignal<{ id: string; emote: string } | null>(null)
+  const [speechEvent, setSpeechEvent] = createSignal<{ id: string; speech: string } | null>(null)
+  const [actionEvent, setActionEvent] = createSignal<{ id: string; action: string } | null>(null)
 
   createEffect(on([token, heroIds] as const, ([t, ids]) => {
     room?.leave()
@@ -122,6 +125,15 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
         r.onMessage('COMBAT_JOIN_OFFER', () => {
           setJoinOffer(true)
         })
+        r.onMessage('EMOTE_EVENT', (data: { id: string; emote: string }) => {
+          setEmoteEvent({ id: data.id, emote: data.emote })
+        })
+        r.onMessage('SPEECH_EVENT', (data: { id: string; speech: string }) => {
+          setSpeechEvent({ id: data.id, speech: data.speech })
+        })
+        r.onMessage('ACTION_EVENT', (data: { id: string; action: string }) => {
+          setActionEvent({ id: data.id, action: data.action })
+        })
         r.onMessage('ACTION_RESULT', (data: ActionResult) => {
           setActionResult(data)
         })
@@ -165,6 +177,9 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
     joinOffer,
     actionError,
     actionResult,
+    emoteEvent,
+    speechEvent,
+    actionEvent,
     move(destination: Position) { room?.send('MOVE', { destination }) },
     face(direction: string) { room?.send('FACE', { direction }) },
     interact() { room?.send('INTERACT') },
@@ -176,5 +191,8 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
     joinCombat() { setJoinOffer(false); room?.send('JOIN_COMBAT') },
     dismissJoinOffer() { setJoinOffer(false) },
     dismissCombatResult() { setCombatResult(null); setRecoveryEndsAt(null) },
+    emote(emote: string) { room?.send('EMOTE', { emote }) },
+    speech(speech: string) { room?.send('SPEECH', { speech }) },
+    action(action: string) { room?.send('TOKEN_ACTION', { action }) },
   }
 }

@@ -40,6 +40,8 @@ const SIDEBAR_WIDTH = 380
 export function ExploreScreen() {
   const state = createExploreRoom(token, heroIds)
   const navigate = useNavigate()
+  let boardEl: HTMLElement | undefined
+
   const [selectedAbility, setSelectedAbility] = createSignal<AbilityDefinition | null>(null)
   const [usedAbilityTitles, setUsedAbilityTitles] = createSignal<string[]>([])
   const [dragPos, setDragPos] = createSignal<Position | null>(null)
@@ -303,6 +305,20 @@ export function ExploreScreen() {
     if (cs) state.dismissEncounter()
   }))
 
+  // Forward server-broadcast emote/speech/action events to board (for other clients' tokens)
+  createEffect(on(state.emoteEvent, (ev) => {
+    if (!ev || !boardEl || heroIds().includes(ev.id)) return
+    boardEl.dispatchEvent(new CustomEvent('show-emote', { detail: { id: ev.id, emote: ev.emote } }))
+  }))
+  createEffect(on(state.speechEvent, (ev) => {
+    if (!ev || !boardEl || heroIds().includes(ev.id)) return
+    boardEl.dispatchEvent(new CustomEvent('show-speech', { detail: { id: ev.id, speech: ev.speech } }))
+  }))
+  createEffect(on(state.actionEvent, (ev) => {
+    if (!ev || !boardEl || heroIds().includes(ev.id)) return
+    boardEl.dispatchEvent(new CustomEvent('show-action', { detail: { id: ev.id, action: ev.action } }))
+  }))
+
   const currentCombatActor = createMemo(() => {
     const cs = state.combatState()
     if (!cs) return null
@@ -328,6 +344,10 @@ export function ExploreScreen() {
               onTokenMove={handleTokenMove}
               onTokenDrag={handleTokenDrag}
               onTokenFace={handleTokenFace}
+              onRef={(el) => { boardEl = el }}
+              onTokenEmote={(emote) => state.emote(emote)}
+              onTokenSpeech={(speech) => state.speech(speech)}
+              onTokenAction={(action) => state.action(action)}
             />
 
             {/* Turn indicator */}

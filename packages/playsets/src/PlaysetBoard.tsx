@@ -122,12 +122,18 @@ function ExploreBoard(props: PlaysetBoardProps) {
       const { speech } = (e as CustomEvent<{ id: string; speech: string }>).detail
       props.onTokenSpeech?.(speech)
     }
+    function onTokenAction(e: Event) {
+      const { action } = (e as CustomEvent<{ id: string; action: string }>).detail
+      props.onTokenAction?.(action)
+    }
+    props.onRef?.(boardEl)
     boardEl.addEventListener('cellclick', onCellClick)
     boardEl.addEventListener('tokenmove', onTokenMove)
     boardEl.addEventListener('tokendrag', onTokenDrag)
     boardEl.addEventListener('tokenface', onTokenFace)
     boardEl.addEventListener('tokenemote', onTokenEmote)
     boardEl.addEventListener('tokenspeech', onTokenSpeech)
+    boardEl.addEventListener('tokenaction', onTokenAction)
     onCleanup(() => {
       boardEl.removeEventListener('cellclick', onCellClick)
       boardEl.removeEventListener('tokenmove', onTokenMove)
@@ -135,6 +141,7 @@ function ExploreBoard(props: PlaysetBoardProps) {
       boardEl.removeEventListener('tokenface', onTokenFace)
       boardEl.removeEventListener('tokenemote', onTokenEmote)
       boardEl.removeEventListener('tokenspeech', onTokenSpeech)
+      boardEl.removeEventListener('tokenaction', onTokenAction)
     })
   })
 

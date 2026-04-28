@@ -84,6 +84,21 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
         () => { this.reloadScene() })
       .subscribe()
 
+    this.onMessage<{ emote: string }>('EMOTE', (client, msg) => {
+      const actorId = (client.userData as { heroIds?: string[] })?.heroIds?.[0]
+      if (actorId) this.broadcast('EMOTE_EVENT', { id: actorId, emote: msg.emote })
+    })
+
+    this.onMessage<{ speech: string }>('SPEECH', (client, msg) => {
+      const actorId = (client.userData as { heroIds?: string[] })?.heroIds?.[0]
+      if (actorId) this.broadcast('SPEECH_EVENT', { id: actorId, speech: msg.speech })
+    })
+
+    this.onMessage<{ action: string }>('TOKEN_ACTION', (client, msg) => {
+      const actorId = (client.userData as { heroIds?: string[] })?.heroIds?.[0]
+      if (actorId) this.broadcast('ACTION_EVENT', { id: actorId, action: msg.action })
+    })
+
     this.onMessage<MoveMessage>('MOVE', async (client, message) => {
       await this.handleMove(client, message)
     })
