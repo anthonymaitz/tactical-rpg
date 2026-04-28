@@ -8,6 +8,8 @@ function toPlayerInventory(row: Record<string, unknown>): PlayerInventory {
     gold: (row.gold as number) ?? 0,
     healthPotions: (row.health_potions as number) ?? 0,
     starFragments: (row.star_fragments as number) ?? 0,
+    decorShards: (row.decor_shards as number) ?? 0,
+    builderProps: (row.builder_props as Record<string, number>) ?? {},
   }
 }
 
@@ -39,12 +41,21 @@ export const inventoryService = {
 
   async addLoot(userId: string, loot: LootResult): Promise<PlayerInventory> {
     const inv = await this.getOrCreate(userId)
+
+    // Merge builder prop drops into existing map
+    const mergedProps = { ...inv.builderProps }
+    for (const propId of loot.builderPropIds) {
+      mergedProps[propId] = (mergedProps[propId] ?? 0) + 1
+    }
+
     const { data, error } = await supabase
       .from('player_inventory')
       .update({
         gold: inv.gold + loot.gold,
         health_potions: inv.healthPotions + loot.healthPotions,
         star_fragments: inv.starFragments + loot.starFragments,
+        decor_shards: inv.decorShards + loot.decorShards,
+        builder_props: mergedProps,
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', userId)

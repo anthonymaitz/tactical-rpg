@@ -7,8 +7,13 @@ import { InPlaceCombatEngine } from './InPlaceCombatEngine'
 import { isValidMove, isWalkable, isAdjacent, getFrontCell, getMovementDirection } from './logic/explore-logic'
 import { heroService } from '../db/hero-service'
 import { supabase } from '../db/supabase'
-import { THE_INN, generateSceneFromInn } from 'shared-types'
+import { THE_INN, generateSceneFromInn, WEAPON_DAMAGE_BONUSES } from 'shared-types'
 import type { Position, SceneData, ActorState, AbilityDefinition, EncounterEvent } from 'shared-types'
+
+function weaponDamageBonus(weapon: string | null | undefined): number {
+  if (!weapon) return 0
+  return WEAPON_DAMAGE_BONUSES[weapon] ?? 0
+}
 
 interface MoveMessage {
   destination: Position
@@ -333,6 +338,7 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       statusEffects: [],
       isNPC: false,
       abilities: hero.abilities,
+      damageBonus: weaponDamageBonus(hero.gear?.weapon),
     }
 
     const enemyData = this.enemyManager.getEnemy(encounter.enemyId)
@@ -404,6 +410,7 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       statusEffects: [],
       isNPC: false,
       abilities: hero.abilities,
+      damageBonus: weaponDamageBonus(hero.gear?.weapon),
     }
 
     this._combat.addActor(heroActor)

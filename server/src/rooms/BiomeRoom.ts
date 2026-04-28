@@ -9,6 +9,7 @@ import { inventoryService } from '../db/inventory-service'
 import { dropTableService } from '../db/drop-table-service'
 import { supabase } from '../db/supabase'
 import type { Position, SceneData, ActorState, AbilityDefinition, EncounterEvent, LootResult } from 'shared-types'
+import { WEAPON_DAMAGE_BONUSES } from 'shared-types'
 
 interface MoveMessage {
   destination: Position
@@ -70,6 +71,11 @@ function makeBiomeSceneData(biomeId: string): SceneData {
     ],
     weather: 'sunny',
   }
+}
+
+function weaponDamageBonus(weapon: string | null | undefined): number {
+  if (!weapon) return 0
+  return WEAPON_DAMAGE_BONUSES[weapon] ?? 0
 }
 
 function isBiomeWalkable(pos: Position): boolean {
@@ -269,6 +275,7 @@ export class BiomeRoom extends BaseRoom<ExploreState> {
       statusEffects: [],
       isNPC: false,
       abilities: hero.abilities,
+      damageBonus: weaponDamageBonus(hero.gear?.weapon),
     }
 
     const enemyData = this.enemyManager.getEnemy(encounter.enemyId)
@@ -344,6 +351,7 @@ export class BiomeRoom extends BaseRoom<ExploreState> {
       statusEffects: [],
       isNPC: false,
       abilities: hero.abilities,
+      damageBonus: weaponDamageBonus(hero.gear?.weapon),
     }
 
     this._combat.addActor(heroActor)
@@ -471,7 +479,7 @@ export class BiomeRoom extends BaseRoom<ExploreState> {
       }
 
       // Roll loot drops from all defeated enemies
-      const loot: LootResult = { gold: 0, healthPotions: 0, starFragments: 0 }
+      const loot: LootResult = { gold: 0, healthPotions: 0, starFragments: 0, decorShards: 0, builderPropIds: [] }
       await Promise.all(
         cs.activeEnemyIds.map(async (enemyId) => {
           const slug = this._combatEnemySlugs.get(enemyId)
@@ -480,6 +488,8 @@ export class BiomeRoom extends BaseRoom<ExploreState> {
           loot.gold += dropped.gold
           loot.healthPotions += dropped.healthPotions
           loot.starFragments += dropped.starFragments
+          loot.decorShards += dropped.decorShards
+          loot.builderPropIds.push(...dropped.builderPropIds)
         })
       )
 

@@ -4,6 +4,7 @@ import { cors } from 'hono/cors'
 import { heroRoutes } from './routes/heroes'
 import { contentRoutes } from './routes/content'
 import { inventoryRoutes } from './routes/inventory'
+import { debugRoutes } from './routes/debug'
 
 export function createHttpApp(): Hono {
   const app = new Hono()
@@ -12,5 +13,6 @@ export function createHttpApp(): Hono {
   app.route('/heroes', heroRoutes)
   app.route('/content', contentRoutes)
   app.route('/inventory', inventoryRoutes)
+  app.route('/debug', debugRoutes)
   return app
 }

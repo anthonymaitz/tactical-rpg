@@ -3,6 +3,7 @@ import type { LootResult, ItemType } from 'shared-types'
 
 interface DropEntry {
   item: ItemType
+  prop_id?: string
   min_qty: number
   max_qty: number
   weight: number
@@ -31,7 +32,7 @@ export const dropTableService = {
       .eq('slug', slug)
       .single()
 
-    const result: LootResult = { gold: 0, healthPotions: 0, starFragments: 0 }
+    const result: LootResult = { gold: 0, healthPotions: 0, starFragments: 0, decorShards: 0, builderPropIds: [] }
     if (error || !data) return result
 
     const entries = data.entries as DropEntry[]
@@ -42,6 +43,10 @@ export const dropTableService = {
     if (picked.item === 'gold') result.gold = qty
     else if (picked.item === 'health_potion') result.healthPotions = qty
     else if (picked.item === 'star_fragment') result.starFragments = qty
+    else if (picked.item === 'decor_shard') result.decorShards = qty
+    else if (picked.item === 'builder_prop' && picked.prop_id) {
+      for (let i = 0; i < qty; i++) result.builderPropIds.push(picked.prop_id)
+    }
 
     return result
   },

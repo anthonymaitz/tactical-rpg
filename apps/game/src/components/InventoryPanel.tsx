@@ -25,7 +25,8 @@ export function InventoryPanel(props: Props) {
             <div style={{ display: 'flex', gap: '10px', 'flex-wrap': 'wrap' }}>
               <StatChip label="Gold" value={stash().gold} color="#f0c040" />
               <StatChip label="Potions" value={stash().healthPotions} color="#e05080" />
-              <StatChip label="Fragments" value={stash().starFragments} color="#80c0ff" />
+              <StatChip label="Star Frags" value={stash().starFragments} color="#80c0ff" />
+              <StatChip label="Decor Shards" value={stash().decorShards} color="#c080ff" />
             </div>
           )}
         </Show>

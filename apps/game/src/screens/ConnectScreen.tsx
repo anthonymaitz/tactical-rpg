@@ -193,13 +193,16 @@ export function ConnectScreen() {
               }}
             </For>
           </div>
-          <div style={{ 'margin-top': '20px', display: 'flex', gap: '12px' }}>
+          <div style={{ 'margin-top': '20px', display: 'flex', gap: '12px', 'flex-wrap': 'wrap' }}>
             <button onClick={() => setView('create')} style={{ padding: '8px 16px' }}>+ New Hero</button>
             <button onClick={handleEnterInn} disabled={selected().size === 0} style={{ padding: '10px 20px', opacity: selected().size === 0 ? 0.5 : 1 }}>
               Enter The Inn ({selected().size} selected)
             </button>
             <button onClick={handleOpenBuilder} style={{ padding: '10px 20px' }}>
               Builder
+            </button>
+            <button onClick={() => navigate('/debug')} style={{ padding: '8px 14px', opacity: 0.5, 'font-size': '11px' }}>
+              Debug
             </button>
           </div>
           <Show when={heroes().filter((h) => !isRecovering(h)).length === 0 && heroes().length > 0}>

@@ -44,8 +44,9 @@ export function resolveAction(
     const energyDeltas: Record<string, number> = { [actorId]: -ability.energyCost }
     const statusEffectsApplied: Record<string, string[]> = {}
 
+    const damageBonus = actor.damageBonus ?? 0
     for (const targetId of targetIds) {
-      if (ability.effect === 'damage') hpDeltas[targetId] = -roll.total
+      if (ability.effect === 'damage') hpDeltas[targetId] = -(roll.total + damageBonus)
       if (ability.effect === 'heal') hpDeltas[targetId] = roll.total
       if (ability.statusEffect) statusEffectsApplied[targetId] = ability.statusEffect
     }

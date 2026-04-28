@@ -24,6 +24,7 @@ export interface ActorState {
   isNPC: boolean
   isGhost?: boolean
   abilities: AbilityDefinition[]
+  damageBonus?: number
 }
 
 export type Action =

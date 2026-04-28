@@ -1,9 +1,11 @@
-export type ItemType = 'gold' | 'health_potion' | 'star_fragment'
+export type ItemType = 'gold' | 'health_potion' | 'star_fragment' | 'decor_shard' | 'builder_prop'
 
 export interface LootResult {
   gold: number
   healthPotions: number
   starFragments: number
+  decorShards: number
+  builderPropIds: string[]
 }
 
 export interface PlayerInventory {
@@ -11,6 +13,8 @@ export interface PlayerInventory {
   gold: number
   healthPotions: number
   starFragments: number
+  decorShards: number
+  builderProps: Record<string, number>
 }
 
 export interface HeroInventory {
@@ -25,4 +29,9 @@ export const STAR_UPGRADE_COSTS: Record<number, number> = {
   3: 60,
   4: 180,
   5: 360,
+}
+
+/** Flat damage bonus keyed by weapon item ID */
+export const WEAPON_DAMAGE_BONUSES: Record<string, number> = {
+  'debug-sword': 1,
 }

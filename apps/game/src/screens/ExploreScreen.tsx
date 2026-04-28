@@ -7,6 +7,7 @@ import { createHeroes } from '../hooks/useHeroes'
 import { ComicPlayer } from '../components/ComicPlayer'
 import { PartyPicker } from '../components/PartyPicker'
 import { InventoryPanel } from '../components/InventoryPanel'
+import { CombatResultModal } from '../components/CombatResultModal'
 import { SimpleQuestHUD } from 'simplequest-hud'
 import { useContent } from '../hooks/useContent'
 import { PlaysetBoard } from 'playsets'
@@ -467,35 +468,12 @@ export function ExploreScreen() {
             </Show>
 
             {/* Combat results overlay */}
-            <Show when={state.combatResult()}>
-              <div style={{
-                position: 'absolute', inset: '0', 'z-index': '30', background: 'rgba(0,0,0,0.7)',
-                display: 'flex', 'align-items': 'center', 'justify-content': 'center',
-              }}>
-                <div style={{ background: 'rgba(5,10,5,0.97)', border: '1px solid rgba(255,255,255,0.1)', 'border-radius': '10px', padding: '32px 40px', 'text-align': 'center', 'max-width': '360px' }}>
-                  <Show when={state.combatResult() === 'win'}>
-                    <div style={{ color: '#6f6', 'font-size': '22px', 'margin-bottom': '8px' }}>Victory!</div>
-                    <div style={{ color: '#888', 'font-size': '13px', 'margin-bottom': '20px' }}>The enemy has been defeated.</div>
-                    <button onClick={state.dismissCombatResult} style={{ padding: '8px 24px', background: 'rgba(80,160,80,0.2)', color: '#6f6', border: '1px solid #3a5a3a', 'border-radius': '4px', cursor: 'pointer' }}>Continue</button>
-                  </Show>
-                  <Show when={state.combatResult() === 'lose'}>
-                    <div style={{ color: '#f66', 'font-size': '22px', 'margin-bottom': '8px' }}>Defeated</div>
-                    <div style={{ color: '#888', 'font-size': '13px', 'margin-bottom': '8px' }}>Your heroes need time to recover.</div>
-                    <Show when={state.recoveryEndsAt()}>
-                      <div style={{ color: '#666', 'font-size': '11px', 'margin-bottom': '16px' }}>
-                        Available again: {new Date(state.recoveryEndsAt()!).toLocaleTimeString()}
-                      </div>
-                    </Show>
-                    <button
-                      onClick={() => { state.dismissCombatResult(); navigate('/') }}
-                      style={{ padding: '8px 24px', background: 'rgba(160,50,50,0.2)', color: '#f88', border: '1px solid #5a3a3a', 'border-radius': '4px', cursor: 'pointer' }}
-                    >
-                      Return to Roster
-                    </button>
-                  </Show>
-                </div>
-              </div>
-            </Show>
+            <CombatResultModal
+              result={state.combatResult()}
+              recoveryEndsAt={state.recoveryEndsAt()}
+              onDismissWin={state.dismissCombatResult}
+              onDismissLose={() => { state.dismissCombatResult(); navigate('/inn') }}
+            />
 
             {/* Interaction comic panel */}
             <Show when={interactionPanels()}>
