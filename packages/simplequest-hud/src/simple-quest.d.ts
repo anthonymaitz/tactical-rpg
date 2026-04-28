@@ -35,6 +35,8 @@ declare module 'simple-quest' {
     energy: boolean[]
     hp: number
     die: string
+    starRating?: number
+    gear?: { weapon?: string | null; weaponBonus?: number }
   }
 
   export const sampleContent: SimpleQuestContent

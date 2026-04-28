@@ -142,6 +142,8 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
         maxHp,
         combat: 'inGeneral',
         energy: Array(10).fill(true) as boolean[],
+        starRating: hero.starRating ?? 0,
+        gear: hero.gear ? { weapon: hero.gear.weapon ?? null, weaponBonus: weaponDamageBonus(hero.gear.weapon) } : undefined,
       })
     })
 
@@ -183,6 +185,8 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
         maxHp,
         combat: 'inGeneral',
         energy: Array(10).fill(true) as boolean[],
+        starRating: hero.starRating ?? 0,
+        gear: hero.gear ? { weapon: hero.gear.weapon ?? null, weaponBonus: weaponDamageBonus(hero.gear.weapon) } : undefined,
       })
     })
   }
