@@ -8,8 +8,8 @@ import { heroService } from '../db/hero-service'
 import { inventoryService } from '../db/inventory-service'
 import { dropTableService } from '../db/drop-table-service'
 import { supabase } from '../db/supabase'
-import type { Position, SceneData, ActorState, AbilityDefinition, EncounterEvent, LootResult } from 'shared-types'
-import { WEAPON_DAMAGE_BONUSES } from 'shared-types'
+import type { Position, SceneData, ActorState, EncounterEvent, LootResult } from 'shared-types'
+import { weaponDamageBonus, ENEMY_SLASH } from './combat-constants'
 
 interface MoveMessage {
   destination: Position
@@ -20,16 +20,6 @@ const BIOME_SIZE = 100
 const SPAWN_X = 50
 const SPAWN_Y = 50
 const RECOVERY_HOURS = 8
-
-const ENEMY_SLASH: AbilityDefinition = {
-  id: 'slash',
-  name: 'Slash',
-  energyCost: 3,
-  diceNotation: { kind: 'notation', value: '1d4' },
-  targetType: 'enemy',
-  effect: 'damage',
-  context: 'inCombat',
-}
 
 // Hardcoded spawn points for Verdant Forest MVP — scattered around the spawn pad
 const VERDANT_FOREST_SPAWNS = [
@@ -71,11 +61,6 @@ function makeBiomeSceneData(biomeId: string): SceneData {
     ],
     weather: 'sunny',
   }
-}
-
-function weaponDamageBonus(weapon: string | null | undefined): number {
-  if (!weapon) return 0
-  return WEAPON_DAMAGE_BONUSES[weapon] ?? 0
 }
 
 function isBiomeWalkable(pos: Position): boolean {
@@ -303,7 +288,7 @@ export class BiomeRoom extends BaseRoom<ExploreState> {
     client.send('ENCOUNTER', encounter)
 
     // Open biome — no walls for combat
-    this._combat = new InPlaceCombatEngine([heroActor, enemyActor], [], enemyData.level)
+    this._combat = new InPlaceCombatEngine([heroActor, enemyActor], [], enemyData.level, 'biome')
     this._combatParticipants.add(client.sessionId)
     this._combatHeroActorIds.set(client.sessionId, hero.id)
 
@@ -480,19 +465,22 @@ export class BiomeRoom extends BaseRoom<ExploreState> {
         this.enemyManager.removeEnemy(enemyId)
       }
 
-      // Roll loot drops from all defeated enemies
-      const loot: LootResult = { gold: 0, healthPotions: 0, starFragments: 0, decorShards: 0, builderPropIds: [] }
-      await Promise.all(
-        cs.activeEnemyIds.map(async (enemyId) => {
+      // Roll loot drops from all defeated enemies, then reduce into a single result
+      const drops = await Promise.all(
+        cs.activeEnemyIds.map((enemyId) => {
           const slug = this._combatEnemySlugs.get(enemyId)
-          if (!slug) return
-          const dropped = await dropTableService.rollDrops(slug)
-          loot.gold += dropped.gold
-          loot.healthPotions += dropped.healthPotions
-          loot.starFragments += dropped.starFragments
-          loot.decorShards += dropped.decorShards
-          loot.builderPropIds.push(...dropped.builderPropIds)
+          return slug ? dropTableService.rollDrops(slug) : null
         })
+      )
+      const loot = drops.filter(Boolean).reduce<LootResult>(
+        (acc, d) => ({
+          gold: acc.gold + d!.gold,
+          healthPotions: acc.healthPotions + d!.healthPotions,
+          starFragments: acc.starFragments + d!.starFragments,
+          decorShards: acc.decorShards + d!.decorShards,
+          builderPropIds: [...acc.builderPropIds, ...d!.builderPropIds],
+        }),
+        { gold: 0, healthPotions: 0, starFragments: 0, decorShards: 0, builderPropIds: [] }
       )
 
       // Award loot and save HP for all hero participants

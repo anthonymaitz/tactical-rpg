@@ -114,7 +114,8 @@ export function createBiomeRoom(
       r.onMessage('COMBAT_STATE', (data: CombatState) => {
         setCombatState(data)
       })
-      r.onMessage('COMBAT_END', (data: { result: 'win' | 'lose'; recoveryEndsAt?: string; loot?: LootResult }) => {
+      r.onMessage('COMBAT_END', (data: { result: 'win' | 'lose' | 'cancelled'; recoveryEndsAt?: string; loot?: LootResult }) => {
+        if (data.result === 'cancelled') { setCombatState(null); return }
         setCombatResult(data.result)
         setRecoveryEndsAt(data.recoveryEndsAt ?? null)
         setCombatLoot(data.loot ?? null)
@@ -166,7 +167,6 @@ export function createBiomeRoom(
     interaction,
     encounter,
     heroState,
-    sceneData,
     combatState,
     combatResult,
     recoveryEndsAt,

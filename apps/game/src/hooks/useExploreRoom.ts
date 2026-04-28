@@ -117,7 +117,8 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
         r.onMessage('COMBAT_STATE', (data: CombatState) => {
           setCombatState(data)
         })
-        r.onMessage('COMBAT_END', (data: { result: 'win' | 'lose'; recoveryEndsAt?: string }) => {
+        r.onMessage('COMBAT_END', (data: { result: 'win' | 'lose' | 'cancelled'; recoveryEndsAt?: string }) => {
+          if (data.result === 'cancelled') { setCombatState(null); return }
           setCombatResult(data.result)
           setRecoveryEndsAt(data.recoveryEndsAt ?? null)
           if (data.result === 'win') setCombatState(null)
@@ -182,7 +183,6 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
     actionEvent,
     move(destination: Position) { room?.send('MOVE', { destination }) },
     face(direction: string) { room?.send('FACE', { direction }) },
-    interact() { room?.send('INTERACT') },
     rest() { room?.send('REST') },
     dismissInteraction() { setInteraction(null) },
     dismissEncounter() { setEncounter(null) },

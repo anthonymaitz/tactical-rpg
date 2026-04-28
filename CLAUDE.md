@@ -57,18 +57,20 @@ Walking skeleton complete (plans 01–09 + all 4 sub-projects). `pnpm typecheck`
 - Ability targeting, used-state (resets with energy), floating doobers on damage/heal
 - BuildScreen (`/build/:slug`) for designer-authored scenes saved to Supabase
 
-## Next milestone — Biome Entry
+## Milestone status — Biome Entry (complete)
 
-Game loop requires players to leave the Inn and enter a biome map. Current state: doors show a placeholder panel ("coming in next update").
+All biome entry features are shipped:
 
-Priority order:
-
-1. **Doorkeeper party selection** — clicking doorkeeper NPC opens a party picker (choose available heroes), then transitions to biome
-2. **Biome map** — a real explorable map (can start with a handcrafted map, procedural later)
-3. **Post-combat rewards** — XP earned, loot drops, hero scrolls
-4. **Return/extract mechanic** — walk back to spawn pad or use recall item
+1. ✅ Doorkeeper party selection → biome transition
+2. ✅ Biome map (handcrafted starting map)
+3. ✅ Post-combat loot drops (gold, potions, star fragments, decor shards, builder props)
+4. ✅ Hero inventory (potions carried per hero, move to/from stash)
+5. ✅ Star upgrade system (spend star fragments at InventoryPanel)
+6. ✅ Debug tooling (`/debug` route — give items, equip debug sword)
 
 Specs: `docs/superpowers/specs/2026-04-20-game-design.md`
+
+## Next milestone — TBD
 
 ## Supabase
 

@@ -1,23 +1,11 @@
 import { Hono } from 'hono'
 import { inventoryService } from '../db/inventory-service'
 import { heroService } from '../db/hero-service'
-import { verifySupabaseJWT } from '../auth'
+import { authMiddleware } from '../middleware'
 
 export const debugRoutes = new Hono<{ Variables: { userId: string } }>()
 
-debugRoutes.use('*', async (c, next) => {
-  const auth = c.req.header('Authorization')
-  if (!auth?.startsWith('Bearer ')) return c.json({ error: 'Unauthorized' }, 401)
-  const token = auth.slice(7)
-  const projectUrl = process.env.SUPABASE_URL
-  if (!projectUrl) return c.json({ error: 'Server misconfigured' }, 500)
-  try {
-    c.set('userId', await verifySupabaseJWT(token, projectUrl))
-  } catch {
-    return c.json({ error: 'Invalid token' }, 401)
-  }
-  await next()
-})
+debugRoutes.use('*', authMiddleware)
 
 // POST /debug/give-items — add resources to the authenticated player's stash
 // Body: { gold?, healthPotions?, starFragments?, decorShards? }

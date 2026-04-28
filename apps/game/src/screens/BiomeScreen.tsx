@@ -12,16 +12,8 @@ import { SimpleQuestHUD } from 'simplequest-hud'
 import { useContent } from '../hooks/useContent'
 import { PlaysetBoard } from 'playsets'
 import { token, heroIds } from '../session'
+import { classToSpriteId } from '../lib/sprites'
 import { useNavigate, useParams } from '@solidjs/router'
-
-function classToSpriteId(cls?: string): string | undefined {
-  if (!cls) return undefined
-  const c = cls.toLowerCase()
-  if (c === 'fighter' || c === 'warrior') return '/assets/sprites/tokens/warrior.svg'
-  if (c === 'mage' || c === 'wizard') return '/assets/sprites/tokens/mage.svg'
-  if (c === 'rogue' || c === 'thief') return '/assets/sprites/tokens/rogue.svg'
-  return undefined
-}
 
 const SIDEBAR_WIDTH = 380
 // Open biome — no walls
@@ -137,7 +129,8 @@ export function BiomeScreen() {
         profession: '',
         die: actor.die,
       }
-      const cs = state.combatState()!
+      const cs = state.combatState()
+      if (!cs) return JSON.stringify({ ...base, hp: actor.hp, energy: energyArray, combat: 'inCombat' as const })
       return JSON.stringify({
         ...base,
         hp: actor.hp,

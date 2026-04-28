@@ -20,7 +20,7 @@ export class InPlaceCombatEngine {
   private walls: number[][]
   private usedAbilities: Map<string, Set<string>> = new Map()
 
-  constructor(actors: ActorState[], walls: number[][], enemyLevel: number) {
+  constructor(actors: ActorState[], walls: number[][], enemyLevel: number, roomId = 'inn') {
     this.walls = walls
 
     const playerRoll = rollD20()
@@ -38,7 +38,7 @@ export class InPlaceCombatEngine {
     }
 
     this.state = {
-      roomId: 'inn',
+      roomId,
       turnQueue: ordered.map(a => a.id),
       currentActorIndex: 0,
       actors: actorsMap,

@@ -1,22 +1,10 @@
 import { Hono } from 'hono'
 import { inventoryService } from '../db/inventory-service'
-import { verifySupabaseJWT } from '../auth'
+import { authMiddleware } from '../middleware'
 
 export const inventoryRoutes = new Hono<{ Variables: { userId: string } }>()
 
-inventoryRoutes.use('*', async (c, next) => {
-  const auth = c.req.header('Authorization')
-  if (!auth?.startsWith('Bearer ')) return c.json({ error: 'Unauthorized' }, 401)
-  const token = auth.slice(7)
-  const projectUrl = process.env.SUPABASE_URL
-  if (!projectUrl) return c.json({ error: 'Server misconfigured' }, 500)
-  try {
-    c.set('userId', await verifySupabaseJWT(token, projectUrl))
-  } catch {
-    return c.json({ error: 'Invalid token' }, 401)
-  }
-  await next()
-})
+inventoryRoutes.use('*', authMiddleware)
 
 // GET /inventory — player stash + all hero inventories
 inventoryRoutes.get('/', async (c) => {

@@ -3,29 +3,11 @@ import { Hono } from 'hono'
 import { heroService } from '../db/hero-service'
 import { getSqClass, getSqClassAbilities, getSqContent } from '../db/sq-content'
 import { supabase } from '../db/supabase'
-import { verifySupabaseJWT } from '../auth'
+import { authMiddleware } from '../middleware'
 
 export const heroRoutes = new Hono<{ Variables: { userId: string } }>()
 
-// Auth middleware — verifies Bearer JWT using verifySupabaseJWT
-heroRoutes.use('*', async (c, next) => {
-  const auth = c.req.header('Authorization')
-  if (!auth?.startsWith('Bearer ')) {
-    return c.json({ error: 'Unauthorized' }, 401)
-  }
-  const token = auth.slice(7)
-  const projectUrl = process.env.SUPABASE_URL
-  if (!projectUrl) return c.json({ error: 'Server misconfigured' }, 500)
-  let userId: string
-  try {
-    userId = await verifySupabaseJWT(token, projectUrl)
-  } catch (e) {
-    console.error('JWT verification failed:', e)
-    return c.json({ error: 'Invalid token' }, 401)
-  }
-  c.set('userId', userId)
-  await next()
-})
+heroRoutes.use('*', authMiddleware)
 
 // GET /heroes — list current user's heroes
 heroRoutes.get('/', async (c) => {

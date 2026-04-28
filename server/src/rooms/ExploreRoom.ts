@@ -7,13 +7,9 @@ import { InPlaceCombatEngine } from './InPlaceCombatEngine'
 import { isValidMove, isWalkable, isAdjacent, getFrontCell, getMovementDirection } from './logic/explore-logic'
 import { heroService } from '../db/hero-service'
 import { supabase } from '../db/supabase'
-import { THE_INN, generateSceneFromInn, WEAPON_DAMAGE_BONUSES } from 'shared-types'
-import type { Position, SceneData, ActorState, AbilityDefinition, EncounterEvent } from 'shared-types'
-
-function weaponDamageBonus(weapon: string | null | undefined): number {
-  if (!weapon) return 0
-  return WEAPON_DAMAGE_BONUSES[weapon] ?? 0
-}
+import { THE_INN, generateSceneFromInn } from 'shared-types'
+import type { Position, SceneData, ActorState, EncounterEvent } from 'shared-types'
+import { weaponDamageBonus, ENEMY_SLASH } from './combat-constants'
 
 interface MoveMessage {
   destination: Position
@@ -22,16 +18,6 @@ interface MoveMessage {
 const INN_MOVE_SPEED = 10
 const SCENE_SLUG = 'inn-main'
 const RECOVERY_HOURS = 8
-
-const ENEMY_SLASH: AbilityDefinition = {
-  id: 'slash',
-  name: 'Slash',
-  energyCost: 3,
-  diceNotation: { kind: 'notation', value: '1d4' },
-  targetType: 'enemy',
-  effect: 'damage',
-  context: 'inCombat',
-}
 
 export class ExploreRoom extends BaseRoom<ExploreState> {
   private _sceneData: SceneData = generateSceneFromInn(THE_INN)
@@ -120,10 +106,6 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       await this.handleJoinCombat(client)
     })
 
-    this.onMessage('INTERACT', (client) => {
-      this.handleInteract(client)
-    })
-
     this.onMessage('REST', async (client) => {
       const userData = client.userData as { userId?: string; heroIds?: string[] }
       const heroId = (userData?.heroIds ?? [])[0]
@@ -150,10 +132,6 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     this.onMessage<{ direction: string }>('FACE', (client, message) => {
       const player = this.state.players.get(client.sessionId)
       if (player) player.direction = message.direction
-    })
-
-    this.onMessage<{ id: string; x: number; y: number }>('DRAG_UPDATE', (client, message) => {
-      this.broadcast('DRAG_UPDATE', message, { except: client })
     })
 
     this.onMessage('READY', async (client) => {
