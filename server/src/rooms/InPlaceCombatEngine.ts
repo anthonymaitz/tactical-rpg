@@ -5,7 +5,7 @@ import type { ActorState, CombatState, Action, ActionResult, Position } from 'sh
 const DIRS: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1]]
 
 function isWalkable(pos: Position, walls: number[][]): boolean {
-  if (walls.length === 0) return false
+  if (walls.length === 0) return true
   if (pos.y < 0 || pos.y >= walls.length) return false
   if (pos.x < 0 || pos.x >= (walls[0]?.length ?? 0)) return false
   return walls[pos.y][pos.x] === 0
@@ -141,6 +141,17 @@ export class InPlaceCombatEngine {
     this.state = {
       ...this.state,
       currentActorIndex: (this.state.currentActorIndex + 1) % this.state.turnQueue.length,
+    }
+  }
+
+  applyHeal(actorId: string, healAmount: number, energyCost: number): void {
+    const actor = this.state.actors[actorId]
+    if (!actor) return
+    const newHp = Math.min(actor.maxHp, actor.hp + healAmount)
+    const newEnergy = Math.max(0, actor.energy - energyCost)
+    this.state = {
+      ...this.state,
+      actors: { ...this.state.actors, [actorId]: { ...actor, hp: newHp, energy: newEnergy } },
     }
   }
 

@@ -25,6 +25,7 @@ export function SimpleQuestHUD(props: {
   character?: string
   locked?: boolean
   onAbilityActivate?: (title: string, energyCost: number) => void
+  onItemActivate?: (id: string, name: string) => void
   onCharacterChange?: (data: CharacterChangeData) => void
 }) {
   let el!: HTMLElement
@@ -34,13 +35,19 @@ export function SimpleQuestHUD(props: {
       const { title, energyCost } = (e as CustomEvent<{ title: string; energyCost: number }>).detail
       props.onAbilityActivate?.(title, energyCost)
     }
+    function itemHandler(e: Event) {
+      const { id, name } = (e as CustomEvent<{ id: string; name: string }>).detail
+      props.onItemActivate?.(id, name)
+    }
     function characterHandler(e: Event) {
       props.onCharacterChange?.((e as CustomEvent<CharacterChangeData>).detail)
     }
     el.addEventListener('abilityactivate', abilityHandler)
+    el.addEventListener('itemactivate', itemHandler)
     el.addEventListener('characterchange', characterHandler)
     onCleanup(() => {
       el.removeEventListener('abilityactivate', abilityHandler)
+      el.removeEventListener('itemactivate', itemHandler)
       el.removeEventListener('characterchange', characterHandler)
     })
   })

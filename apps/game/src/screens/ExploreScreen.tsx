@@ -6,6 +6,7 @@ import { createExploreRoom } from '../hooks/useExploreRoom'
 import { createHeroes } from '../hooks/useHeroes'
 import { ComicPlayer } from '../components/ComicPlayer'
 import { PartyPicker } from '../components/PartyPicker'
+import { InventoryPanel } from '../components/InventoryPanel'
 import { SimpleQuestHUD } from 'simplequest-hud'
 import { useContent } from '../hooks/useContent'
 import { PlaysetBoard } from 'playsets'
@@ -52,6 +53,7 @@ export function ExploreScreen() {
 
   const heroRoster = createHeroes(token)
   const [partyPickerBiomeId, setPartyPickerBiomeId] = createSignal<string | null>(null)
+  const [sidebarTab, setSidebarTab] = createSignal<'character' | 'inventory'>('character')
 
   const [selectedAbility, setSelectedAbility] = createSignal<AbilityDefinition | null>(null)
   const [usedAbilityTitles, setUsedAbilityTitles] = createSignal<string[]>([])
@@ -309,6 +311,7 @@ export function ExploreScreen() {
     const ev = state.interaction()
     if (ev?.type === 'npc' && ev.role === 'innkeeper') state.rest()
     if (ev?.type === 'npc' && ev.role === 'doorkeeper' && ev.biomeId) {
+      void heroRoster.refresh()
       setPartyPickerBiomeId(ev.biomeId)
     }
     state.dismissInteraction()
@@ -510,10 +513,12 @@ export function ExploreScreen() {
                   biomeId={biomeId()}
                   biomeName={BIOME_NAMES[biomeId()] ?? biomeId()}
                   heroes={heroRoster.heroes}
+                  loading={heroRoster.loading}
                   onConfirm={(ids) => {
+                    const bid = biomeId()
                     setPartyPickerBiomeId(null)
                     setHeroIds(ids)
-                    navigate(`/biome/${biomeId()}`)
+                    navigate(`/biome/${bid}`)
                   }}
                   onCancel={() => setPartyPickerBiomeId(null)}
                 />
@@ -535,59 +540,76 @@ export function ExploreScreen() {
             </div>
           </div>
 
-          {/* Right sidebar — SimpleQuest HUD + combat controls */}
+          {/* Right sidebar — tab switcher + content */}
           <div style={{
-            width: `${SIDEBAR_WIDTH}px`,
-            'flex-shrink': '0',
-            height: '100vh',
-            overflow: 'auto',
-            background: 'rgba(8,12,8,0.97)',
-            'border-left': '1px solid rgba(255,255,255,0.07)',
-            display: 'flex',
-            'flex-direction': 'column',
+            width: `${SIDEBAR_WIDTH}px`, 'flex-shrink': '0', height: '100vh', overflow: 'hidden',
+            background: 'rgba(8,12,8,0.97)', 'border-left': '1px solid rgba(255,255,255,0.07)',
+            display: 'flex', 'flex-direction': 'column',
           }}>
-            {/* SimpleQuest HUD — live character status + ability cards; scrolls internally */}
-            <div style={{ flex: '1 1 0', overflow: 'hidden', display: 'flex', 'flex-direction': 'column', 'min-height': '0' }}>
-              <SimpleQuestHUD
-                content={contentJson()}
-                character={characterJson()}
-                locked={true}
-                onAbilityActivate={handleAbilityActivate}
-              />
-            </div>
-
-            {/* Combat controls — only shown during combat on player's turn */}
-            <Show when={state.combatState() && isMyTurn()}>
-              <div style={{
-                'flex-shrink': '0',
-                padding: '10px 14px',
-                'border-top': '1px solid rgba(255,255,255,0.07)',
-                display: 'flex',
-                'flex-direction': 'column',
-                gap: '8px',
-              }}>
-                <Show when={selectedAbility()}>
-                  <div style={{ 'font-size': '11px', color: '#6f6', padding: '4px 0' }}>
-                    {'▶'} {selectedAbility()!.name} selected — click an enemy to attack
-                    <button
-                      onClick={() => setSelectedAbility(null)}
-                      style={{ 'margin-left': '8px', background: 'none', border: 'none', color: '#888', cursor: 'pointer', 'font-size': '11px' }}
-                    >
-                      cancel
-                    </button>
-                  </div>
-                </Show>
+            {/* Tab bar */}
+            <div style={{ display: 'flex', 'border-bottom': '1px solid rgba(255,255,255,0.07)', 'flex-shrink': '0' }}>
+              {(['character', 'inventory'] as const).map((tab) => (
                 <button
-                  onClick={() => { setSelectedAbility(null); state.endTurn() }}
+                  onClick={() => setSidebarTab(tab)}
                   style={{
-                    padding: '8px', 'font-size': '12px', cursor: 'pointer',
-                    background: 'rgba(10,10,30,0.9)', color: '#aaf',
-                    border: '1px solid rgba(150,150,255,0.25)', 'border-radius': '5px',
-                    'font-weight': '600',
+                    flex: '1', padding: '8px', 'font-size': '11px', 'font-weight': '600',
+                    cursor: 'pointer', border: 'none', 'letter-spacing': '0.05em',
+                    'text-transform': 'uppercase',
+                    background: sidebarTab() === tab ? 'rgba(255,255,255,0.06)' : 'transparent',
+                    color: sidebarTab() === tab ? '#ccc' : '#555',
+                    'border-bottom': sidebarTab() === tab ? '2px solid rgba(100,200,100,0.5)' : '2px solid transparent',
                   }}
                 >
-                  End Turn
+                  {tab}
                 </button>
+              ))}
+            </div>
+
+            <Show when={sidebarTab() === 'character'}>
+              <div style={{ flex: '1 1 0', overflow: 'hidden', display: 'flex', 'flex-direction': 'column', 'min-height': '0' }}>
+                <SimpleQuestHUD
+                  content={contentJson()}
+                  character={characterJson()}
+                  locked={true}
+                  onAbilityActivate={handleAbilityActivate}
+                />
+              </div>
+
+              <Show when={state.combatState() && isMyTurn()}>
+                <div style={{
+                  'flex-shrink': '0', padding: '10px 14px',
+                  'border-top': '1px solid rgba(255,255,255,0.07)',
+                  display: 'flex', 'flex-direction': 'column', gap: '8px',
+                }}>
+                  <Show when={selectedAbility()}>
+                    <div style={{ 'font-size': '11px', color: '#6f6', padding: '4px 0' }}>
+                      {'▶'} {selectedAbility()!.name} selected — click an enemy to attack
+                      <button
+                        onClick={() => setSelectedAbility(null)}
+                        style={{ 'margin-left': '8px', background: 'none', border: 'none', color: '#888', cursor: 'pointer', 'font-size': '11px' }}
+                      >
+                        cancel
+                      </button>
+                    </div>
+                  </Show>
+                  <button
+                    onClick={() => { setSelectedAbility(null); state.endTurn() }}
+                    style={{
+                      padding: '8px', 'font-size': '12px', cursor: 'pointer',
+                      background: 'rgba(10,10,30,0.9)', color: '#aaf',
+                      border: '1px solid rgba(150,150,255,0.25)', 'border-radius': '5px',
+                      'font-weight': '600',
+                    }}
+                  >
+                    End Turn
+                  </button>
+                </div>
+              </Show>
+            </Show>
+
+            <Show when={sidebarTab() === 'inventory'}>
+              <div style={{ flex: '1 1 0', 'min-height': '0', overflow: 'auto' }}>
+                <InventoryPanel token={token} heroes={heroRoster.heroes} />
               </div>
             </Show>
           </div>

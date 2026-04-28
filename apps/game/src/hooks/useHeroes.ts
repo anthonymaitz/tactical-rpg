@@ -1,5 +1,6 @@
 import { createSignal, createEffect, on } from 'solid-js'
 import type { HeroRecord, GearSlots } from 'shared-types'
+import { supabase } from '../lib/supabase'
 
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
@@ -13,6 +14,11 @@ async function apiFetch<T>(path: string, token: string, init?: RequestInit): Pro
     throw new Error((err as { error: string }).error)
   }
   return res.json() as Promise<T>
+}
+
+async function freshToken(fallback: string): Promise<string> {
+  const { data } = await supabase.auth.getSession()
+  return data.session?.access_token ?? fallback
 }
 
 export type CreateHeroInput = {
@@ -33,7 +39,8 @@ export function createHeroes(token: () => string | null) {
     setLoading(true)
     setError(null)
     try {
-      const data = await apiFetch<HeroRecord[]>('/heroes', t)
+      const ft = await freshToken(t)
+      const data = await apiFetch<HeroRecord[]>('/heroes', ft)
       setHeroes(data)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load heroes')

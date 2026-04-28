@@ -1,7 +1,7 @@
 import type { Position } from './index'
 
 function isWalkable(pos: Position, walls: number[][]): boolean {
-  if (walls.length === 0) return false
+  if (walls.length === 0) return true
   if (pos.y < 0 || pos.y >= walls.length) return false
   if (pos.x < 0 || pos.x >= (walls[0]?.length ?? 0)) return false
   return walls[pos.y][pos.x] === 0
@@ -16,6 +16,7 @@ export function getMoveCost(
 ): number | null {
   if (!isWalkable(destination, walls)) return null
   if (origin.x === destination.x && origin.y === destination.y) return 0
+  if (walls.length === 0) return Math.abs(destination.x - origin.x) + Math.abs(destination.y - origin.y)
 
   const key = (p: Position) => `${p.x},${p.y}`
   const queue: Array<{ pos: Position; cost: number }> = [{ pos: origin, cost: 0 }]

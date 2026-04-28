@@ -3,7 +3,9 @@ import { getReachableCells, getMoveCost } from 'shared-types'
 import type { ExploreMap, ExploreToken, AbilityDefinition, Position } from 'shared-types'
 import type { Panel } from 'click-comics'
 import { createBiomeRoom } from '../hooks/useBiomeRoom'
+import { createHeroes } from '../hooks/useHeroes'
 import { ComicPlayer } from '../components/ComicPlayer'
+import { InventoryPanel } from '../components/InventoryPanel'
 
 import { SimpleQuestHUD } from 'simplequest-hud'
 import { useContent } from '../hooks/useContent'
@@ -30,8 +32,10 @@ export function BiomeScreen() {
   const biomeId = () => params.biomeId
 
   const state = createBiomeRoom(token, heroIds, biomeId)
+  const heroRoster = createHeroes(token)
   let boardEl: HTMLElement | undefined
 
+  const [sidebarTab, setSidebarTab] = createSignal<'character' | 'inventory'>('character')
   const [selectedAbility, setSelectedAbility] = createSignal<AbilityDefinition | null>(null)
   const [usedAbilityTitles, setUsedAbilityTitles] = createSignal<string[]>([])
   const [dragPos, setDragPos] = createSignal<Position | null>(null)
@@ -181,6 +185,10 @@ export function BiomeScreen() {
     )
     return [{ x: dp.x, y: dp.y, kind: (isEncounter ? 'encounter' : 'drop') as 'encounter' | 'drop' }]
   })
+
+  function handleItemActivate(id: string) {
+    if (id === 'health_potion') state.usePotion()
+  }
 
   function handleAbilityActivate(title: string) {
     if (!isMyTurn()) return
@@ -393,6 +401,24 @@ export function BiomeScreen() {
                 <div style={{ background: 'rgba(5,10,5,0.97)', border: '1px solid rgba(255,255,255,0.1)', 'border-radius': '10px', padding: '32px 40px', 'text-align': 'center', 'max-width': '360px' }}>
                   <Show when={state.combatResult() === 'win'}>
                     <div style={{ color: '#6f6', 'font-size': '22px', 'margin-bottom': '8px' }}>Victory!</div>
+                    <Show when={state.combatLoot()}>
+                      {(loot) => (
+                        <div style={{ 'margin-bottom': '16px', display: 'flex', gap: '10px', 'justify-content': 'center', 'flex-wrap': 'wrap' }}>
+                          <Show when={loot().gold > 0}>
+                            <div style={{ color: '#f0c040', 'font-size': '13px' }}>+{loot().gold} gold</div>
+                          </Show>
+                          <Show when={loot().healthPotions > 0}>
+                            <div style={{ color: '#e05080', 'font-size': '13px' }}>+{loot().healthPotions} potion{loot().healthPotions > 1 ? 's' : ''}</div>
+                          </Show>
+                          <Show when={loot().starFragments > 0}>
+                            <div style={{ color: '#80c0ff', 'font-size': '13px' }}>+{loot().starFragments} fragment{loot().starFragments > 1 ? 's' : ''}</div>
+                          </Show>
+                          <Show when={loot().gold === 0 && loot().healthPotions === 0 && loot().starFragments === 0}>
+                            <div style={{ color: '#666', 'font-size': '13px' }}>No loot this time.</div>
+                          </Show>
+                        </div>
+                      )}
+                    </Show>
                     <div style={{ color: '#888', 'font-size': '13px', 'margin-bottom': '20px' }}>The enemy has been defeated.</div>
                     <button onClick={state.dismissCombatResult} style={{ padding: '8px 24px', background: 'rgba(80,160,80,0.2)', color: '#6f6', border: '1px solid #3a5a3a', 'border-radius': '4px', cursor: 'pointer' }}>Continue</button>
                   </Show>
@@ -456,35 +482,63 @@ export function BiomeScreen() {
             </div>
           </div>
 
-          {/* Right sidebar — SimpleQuest HUD + combat controls */}
+          {/* Right sidebar — tab switcher + content */}
           <div style={{
-            width: `${SIDEBAR_WIDTH}px`, 'flex-shrink': '0', height: '100vh', overflow: 'auto',
+            width: `${SIDEBAR_WIDTH}px`, 'flex-shrink': '0', height: '100vh', overflow: 'hidden',
             background: 'rgba(8,12,8,0.97)', 'border-left': '1px solid rgba(255,255,255,0.07)',
             display: 'flex', 'flex-direction': 'column',
           }}>
-            <div style={{ flex: '1 1 0', overflow: 'hidden', display: 'flex', 'flex-direction': 'column', 'min-height': '0' }}>
-              <SimpleQuestHUD
-                content={contentJson()}
-                character={characterJson()}
-                locked={true}
-                onAbilityActivate={handleAbilityActivate}
-              />
+            {/* Tab bar */}
+            <div style={{ display: 'flex', 'border-bottom': '1px solid rgba(255,255,255,0.07)', 'flex-shrink': '0' }}>
+              {(['character', 'inventory'] as const).map((tab) => (
+                <button
+                  onClick={() => setSidebarTab(tab)}
+                  style={{
+                    flex: '1', padding: '8px', 'font-size': '11px', 'font-weight': '600',
+                    cursor: 'pointer', border: 'none', 'letter-spacing': '0.05em',
+                    'text-transform': 'uppercase',
+                    background: sidebarTab() === tab ? 'rgba(255,255,255,0.06)' : 'transparent',
+                    color: sidebarTab() === tab ? '#ccc' : '#555',
+                    'border-bottom': sidebarTab() === tab ? '2px solid rgba(100,200,100,0.5)' : '2px solid transparent',
+                  }}
+                >
+                  {tab}
+                </button>
+              ))}
             </div>
 
-            <Show when={state.combatState() && isMyTurn()}>
-              <div style={{ 'flex-shrink': '0', padding: '10px 14px', 'border-top': '1px solid rgba(255,255,255,0.07)', display: 'flex', 'flex-direction': 'column', gap: '8px' }}>
-                <Show when={selectedAbility()}>
-                  <div style={{ 'font-size': '11px', color: '#6f6', padding: '4px 0' }}>
-                    {'▶'} {selectedAbility()!.name} selected — click an enemy to attack
-                    <button onClick={() => setSelectedAbility(null)} style={{ 'margin-left': '8px', background: 'none', border: 'none', color: '#888', cursor: 'pointer', 'font-size': '11px' }}>cancel</button>
-                  </div>
-                </Show>
-                <button
-                  onClick={() => { setSelectedAbility(null); state.endTurn() }}
-                  style={{ padding: '8px', 'font-size': '12px', cursor: 'pointer', background: 'rgba(10,10,30,0.9)', color: '#aaf', border: '1px solid rgba(150,150,255,0.25)', 'border-radius': '5px', 'font-weight': '600' }}
-                >
-                  End Turn
-                </button>
+            <Show when={sidebarTab() === 'character'}>
+              <div style={{ flex: '1 1 0', overflow: 'hidden', display: 'flex', 'flex-direction': 'column', 'min-height': '0' }}>
+                <SimpleQuestHUD
+                  content={contentJson()}
+                  character={characterJson()}
+                  locked={true}
+                  onAbilityActivate={handleAbilityActivate}
+                  onItemActivate={handleItemActivate}
+                />
+              </div>
+
+              <Show when={state.combatState() && isMyTurn()}>
+                <div style={{ 'flex-shrink': '0', padding: '10px 14px', 'border-top': '1px solid rgba(255,255,255,0.07)', display: 'flex', 'flex-direction': 'column', gap: '8px' }}>
+                  <Show when={selectedAbility()}>
+                    <div style={{ 'font-size': '11px', color: '#6f6', padding: '4px 0' }}>
+                      {'▶'} {selectedAbility()!.name} selected — click an enemy to attack
+                      <button onClick={() => setSelectedAbility(null)} style={{ 'margin-left': '8px', background: 'none', border: 'none', color: '#888', cursor: 'pointer', 'font-size': '11px' }}>cancel</button>
+                    </div>
+                  </Show>
+                  <button
+                    onClick={() => { setSelectedAbility(null); state.endTurn() }}
+                    style={{ padding: '8px', 'font-size': '12px', cursor: 'pointer', background: 'rgba(10,10,30,0.9)', color: '#aaf', border: '1px solid rgba(150,150,255,0.25)', 'border-radius': '5px', 'font-weight': '600' }}
+                  >
+                    End Turn
+                  </button>
+                </div>
+              </Show>
+            </Show>
+
+            <Show when={sidebarTab() === 'inventory'}>
+              <div style={{ flex: '1 1 0', 'min-height': '0', overflow: 'auto' }}>
+                <InventoryPanel token={token} heroes={heroRoster.heroes} />
               </div>
             </Show>
           </div>

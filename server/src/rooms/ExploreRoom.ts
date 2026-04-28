@@ -166,14 +166,15 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       const hero = await heroService.getHero(heroIds[0])
       if (!hero) return
       const maxHp = hero.maxHp > 0 ? hero.maxHp : 10
-      const hp = hero.currentHp !== null && hero.currentHp !== undefined ? hero.currentHp : maxHp
+      // Inn auto-heals — restore HP to full on every entry
+      await heroService.restoreHp(hero.id)
       client.send('HERO_STATE', {
         name: hero.name,
         class: hero.characterClass,
         personality: hero.personality,
         profession: hero.profession ?? '',
         die: hero.die,
-        hp,
+        hp: maxHp,
         maxHp,
         combat: 'inGeneral',
         energy: Array(10).fill(true) as boolean[],

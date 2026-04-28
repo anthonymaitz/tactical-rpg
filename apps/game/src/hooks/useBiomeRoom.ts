@@ -1,7 +1,7 @@
 import { createSignal, createEffect, on, onCleanup } from 'solid-js'
 import { joinRoom } from './useGameServer'
 import type { Room } from 'colyseus.js'
-import type { Position, SceneData, EncounterEvent, CombatState, Action, ActionResult } from 'shared-types'
+import type { Position, SceneData, EncounterEvent, CombatState, Action, ActionResult, LootResult } from 'shared-types'
 import type { CharacterData } from 'simplequest-hud'
 import { supabase } from '../lib/supabase'
 
@@ -45,6 +45,7 @@ export function createBiomeRoom(
   const [emoteEvent, setEmoteEvent] = createSignal<{ id: string; emote: string } | null>(null)
   const [speechEvent, setSpeechEvent] = createSignal<{ id: string; speech: string } | null>(null)
   const [actionEvent, setActionEvent] = createSignal<{ id: string; action: string } | null>(null)
+  const [combatLoot, setCombatLoot] = createSignal<LootResult | null>(null)
 
   createEffect(on([token, heroIds, biomeId] as const, ([t, ids, bid]) => {
     room?.leave()
@@ -64,6 +65,7 @@ export function createBiomeRoom(
     setRecoveryEndsAt(null)
     setJoinOffer(false)
     setActionError(null)
+    setCombatLoot(null)
 
     if (!t || !bid) return
 
@@ -112,9 +114,10 @@ export function createBiomeRoom(
       r.onMessage('COMBAT_STATE', (data: CombatState) => {
         setCombatState(data)
       })
-      r.onMessage('COMBAT_END', (data: { result: 'win' | 'lose'; recoveryEndsAt?: string }) => {
+      r.onMessage('COMBAT_END', (data: { result: 'win' | 'lose'; recoveryEndsAt?: string; loot?: LootResult }) => {
         setCombatResult(data.result)
         setRecoveryEndsAt(data.recoveryEndsAt ?? null)
+        setCombatLoot(data.loot ?? null)
         if (data.result === 'win') setCombatState(null)
       })
       r.onMessage('COMBAT_JOIN_OFFER', () => {
@@ -173,7 +176,9 @@ export function createBiomeRoom(
     emoteEvent,
     speechEvent,
     actionEvent,
+    combatLoot,
     move(destination: Position) { room?.send('MOVE', { destination }) },
+    usePotion() { room?.send('USE_POTION') },
     face(direction: string) { room?.send('FACE', { direction }) },
     dismissInteraction() { setInteraction(null) },
     dismissEncounter() { setEncounter(null) },
@@ -181,7 +186,7 @@ export function createBiomeRoom(
     endTurn() { room?.send('END_TURN') },
     joinCombat() { setJoinOffer(false); room?.send('JOIN_COMBAT') },
     dismissJoinOffer() { setJoinOffer(false) },
-    dismissCombatResult() { setCombatResult(null); setRecoveryEndsAt(null) },
+    dismissCombatResult() { setCombatResult(null); setRecoveryEndsAt(null); setCombatLoot(null) },
     emote(emote: string) { room?.send('EMOTE', { emote }) },
     speech(speech: string) { room?.send('SPEECH', { speech }) },
     action(action: string) { room?.send('TOKEN_ACTION', { action }) },

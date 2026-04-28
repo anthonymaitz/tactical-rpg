@@ -34,6 +34,7 @@ export type HeroRecord = {
   speed: number
   abilities: AbilityDefinition[]
   gear: GearSlots
+  starRating: number
   recoveryEndsAt: string | null
   createdAt: string
 }

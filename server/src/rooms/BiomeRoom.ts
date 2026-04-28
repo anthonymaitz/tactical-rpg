@@ -5,8 +5,10 @@ import { EnemyManager } from './EnemyManager'
 import { InPlaceCombatEngine } from './InPlaceCombatEngine'
 import { isValidMove, isAdjacent, getMovementDirection } from './logic/explore-logic'
 import { heroService } from '../db/hero-service'
+import { inventoryService } from '../db/inventory-service'
+import { dropTableService } from '../db/drop-table-service'
 import { supabase } from '../db/supabase'
-import type { Position, SceneData, ActorState, AbilityDefinition, EncounterEvent } from 'shared-types'
+import type { Position, SceneData, ActorState, AbilityDefinition, EncounterEvent, LootResult } from 'shared-types'
 
 interface MoveMessage {
   destination: Position
@@ -30,12 +32,16 @@ const ENEMY_SLASH: AbilityDefinition = {
 
 // Hardcoded spawn points for Verdant Forest MVP — scattered around the spawn pad
 const VERDANT_FOREST_SPAWNS = [
-  { id: 'sp-wolf-1',   col: 42, row: 42, name: 'Wolf',   level: 1, spawnRadius: 4 },
-  { id: 'sp-wolf-2',   col: 58, row: 44, name: 'Wolf',   level: 1, spawnRadius: 4 },
-  { id: 'sp-bandit-1', col: 35, row: 50, name: 'Bandit', level: 2, spawnRadius: 5 },
-  { id: 'sp-bandit-2', col: 62, row: 55, name: 'Bandit', level: 2, spawnRadius: 5 },
-  { id: 'sp-spirit-1', col: 50, row: 38, name: 'Forest Spirit', level: 3, spawnRadius: 6 },
+  { id: 'sp-wolf-1',   col: 42, row: 42, name: 'Wolf',         level: 1, spawnRadius: 4, dropTableSlug: 'wolf' },
+  { id: 'sp-wolf-2',   col: 58, row: 44, name: 'Wolf',         level: 1, spawnRadius: 4, dropTableSlug: 'wolf' },
+  { id: 'sp-bandit-1', col: 35, row: 50, name: 'Bandit',       level: 2, spawnRadius: 5, dropTableSlug: 'bandit' },
+  { id: 'sp-bandit-2', col: 62, row: 55, name: 'Bandit',       level: 2, spawnRadius: 5, dropTableSlug: 'bandit' },
+  { id: 'sp-spirit-1', col: 50, row: 38, name: 'Forest Spirit',level: 3, spawnRadius: 6, dropTableSlug: 'forest-spirit' },
 ]
+
+const SPAWN_SLUG_MAP = new Map<string, string>(
+  VERDANT_FOREST_SPAWNS.map(sp => [sp.id, sp.dropTableSlug])
+)
 
 function makeBiomeSceneData(biomeId: string): SceneData {
   const spawnPoints = biomeId === 'verdant-forest' ? VERDANT_FOREST_SPAWNS : []
@@ -77,6 +83,7 @@ export class BiomeRoom extends BaseRoom<ExploreState> {
   private _combat: InPlaceCombatEngine | null = null
   private _combatParticipants: Set<string> = new Set()
   private _combatHeroActorIds: Map<string, string> = new Map()
+  private _combatEnemySlugs: Map<string, string> = new Map()
 
   async onCreate(options: { biomeId?: string } = {}): Promise<void> {
     this._biomeId = options.biomeId ?? 'verdant-forest'
@@ -126,6 +133,10 @@ export class BiomeRoom extends BaseRoom<ExploreState> {
 
     this.onMessage('JOIN_COMBAT', async (client) => {
       await this.handleJoinCombat(client)
+    })
+
+    this.onMessage('USE_POTION', async (client) => {
+      await this.handleUsePotion(client)
     })
 
     this.onMessage<{ direction: string }>('FACE', (client, message) => {
@@ -287,6 +298,11 @@ export class BiomeRoom extends BaseRoom<ExploreState> {
     this._combatParticipants.add(client.sessionId)
     this._combatHeroActorIds.set(client.sessionId, hero.id)
 
+    // Track drop table slug for this enemy (id = spawned-<spawnPointId>)
+    const spawnPointId = encounter.enemyId.replace(/^spawned-/, '')
+    const slug = SPAWN_SLUG_MAP.get(spawnPointId)
+    if (slug) this._combatEnemySlugs.set(encounter.enemyId, slug)
+
     this.broadcast('COMBAT_START', this._combat.getCombatState())
 
     const firstId = this._combat.getCombatState().turnQueue[0]
@@ -413,6 +429,36 @@ export class BiomeRoom extends BaseRoom<ExploreState> {
     this.broadcast('COMBAT_STATE', this._combat.getCombatState())
   }
 
+  private async handleUsePotion(client: Client): Promise<void> {
+    if (!this._combat) return
+    const heroId = this._combatHeroActorIds.get(client.sessionId)
+    if (!heroId) return
+
+    const cs = this._combat.getCombatState()
+    if (cs.turnQueue[cs.currentActorIndex] !== heroId) {
+      client.send('ACTION_REJECTED', { reason: 'not_your_turn' })
+      return
+    }
+
+    const actor = cs.actors[heroId]
+    if (!actor) return
+    if (actor.energy < 1) {
+      client.send('ACTION_REJECTED', { reason: 'insufficient_energy' })
+      return
+    }
+
+    const heroInv = await inventoryService.getHeroInventory(heroId)
+    if (heroInv.healthPotions <= 0) {
+      client.send('ACTION_REJECTED', { reason: 'no_potions' })
+      return
+    }
+
+    const healAmount = actor.maxHp - actor.hp
+    this._combat.applyHeal(heroId, healAmount, 1)
+    await inventoryService.useHeroPotion(heroId)
+    this.broadcast('COMBAT_STATE', this._combat.getCombatState())
+  }
+
   private async endCombat(): Promise<void> {
     if (!this._combat) return
     const winningSide = this._combat.winningSide()
@@ -423,12 +469,33 @@ export class BiomeRoom extends BaseRoom<ExploreState> {
         if (this.state.enemies.has(enemyId)) this.state.enemies.delete(enemyId)
         this.enemyManager.removeEnemy(enemyId)
       }
+
+      // Roll loot drops from all defeated enemies
+      const loot: LootResult = { gold: 0, healthPotions: 0, starFragments: 0 }
       await Promise.all(
-        Object.values(cs.actors)
-          .filter(a => !a.isNPC)
-          .map(a => heroService.updateCurrentHp(a.id, a.hp))
+        cs.activeEnemyIds.map(async (enemyId) => {
+          const slug = this._combatEnemySlugs.get(enemyId)
+          if (!slug) return
+          const dropped = await dropTableService.rollDrops(slug)
+          loot.gold += dropped.gold
+          loot.healthPotions += dropped.healthPotions
+          loot.starFragments += dropped.starFragments
+        })
       )
-      this.broadcast('COMBAT_END', { result: 'win' })
+
+      // Award loot and save HP for all hero participants
+      const heroActors = Object.values(cs.actors).filter(a => !a.isNPC)
+      await Promise.all([
+        ...heroActors.map(a => heroService.updateCurrentHp(a.id, a.hp)),
+        ...[...this._combatHeroActorIds.entries()].map(async ([sessionId, _heroId]) => {
+          const userData = this.clients.find(c => c.sessionId === sessionId)?.userData as { userId?: string } | undefined
+          if (userData?.userId) {
+            await inventoryService.addLoot(userData.userId, loot)
+          }
+        }),
+      ])
+
+      this.broadcast('COMBAT_END', { result: 'win', loot })
     } else if (winningSide === null) {
       this.broadcast('COMBAT_END', { result: 'cancelled' })
     } else {
@@ -448,5 +515,6 @@ export class BiomeRoom extends BaseRoom<ExploreState> {
     this._combat = null
     this._combatParticipants.clear()
     this._combatHeroActorIds.clear()
+    this._combatEnemySlugs.clear()
   }
 }

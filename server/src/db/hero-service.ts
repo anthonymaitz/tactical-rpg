@@ -29,6 +29,7 @@ function toHeroRecord(row: Record<string, unknown>): HeroRecord {
     speed: row.speed as number,
     abilities: row.abilities as HeroRecord['abilities'],
     gear: row.gear as GearSlots,
+    starRating: (row.star_rating as number) ?? 0,
     recoveryEndsAt: row.recovery_ends_at as string | null,
     createdAt: row.created_at as string,
   }

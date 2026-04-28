@@ -8,6 +8,7 @@ interface Props {
   biomeId: string
   biomeName: string
   heroes: () => HeroRecord[]
+  loading?: () => boolean
   onConfirm: (selectedIds: string[]) => void
   onCancel: () => void
 }
@@ -54,7 +55,9 @@ export function PartyPicker(props: Props) {
             }}
           </For>
           <Show when={props.heroes().length === 0}>
-            <div style="color:#666;font-size:13px;text-align:center;padding:20px 0;">No heroes available</div>
+            <div style="color:#666;font-size:13px;text-align:center;padding:20px 0;">
+              {props.loading?.() ? 'Loading heroes…' : 'No heroes available'}
+            </div>
           </Show>
         </div>
 
