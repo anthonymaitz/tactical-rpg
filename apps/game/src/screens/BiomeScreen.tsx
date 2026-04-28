@@ -1,16 +1,15 @@
 import { createSignal, createMemo, createEffect, on, For, Show } from 'solid-js'
-import { THE_INN, generateSceneFromInn, getReachableCells, getMoveCost, getFrontCell, isRecovering } from 'shared-types'
-import type { ExploreMap, ExploreToken, SceneData, AbilityDefinition, Position } from 'shared-types'
+import { getReachableCells, getMoveCost } from 'shared-types'
+import type { ExploreMap, ExploreToken, AbilityDefinition, Position } from 'shared-types'
 import type { Panel } from 'click-comics'
-import { createExploreRoom } from '../hooks/useExploreRoom'
-import { createHeroes } from '../hooks/useHeroes'
+import { createBiomeRoom } from '../hooks/useBiomeRoom'
 import { ComicPlayer } from '../components/ComicPlayer'
-import { PartyPicker } from '../components/PartyPicker'
+
 import { SimpleQuestHUD } from 'simplequest-hud'
 import { useContent } from '../hooks/useContent'
 import { PlaysetBoard } from 'playsets'
-import { token, heroIds, setHeroIds } from '../session'
-import { useNavigate } from '@solidjs/router'
+import { token, heroIds } from '../session'
+import { useNavigate, useParams } from '@solidjs/router'
 
 function classToSpriteId(cls?: string): string | undefined {
   if (!cls) return undefined
@@ -21,37 +20,17 @@ function classToSpriteId(cls?: string): string | undefined {
   return undefined
 }
 
-const NPC_PANELS: Record<string, Panel[]> = {
-  innkeeper: [
-    { speaker: 'Innkeeper', text: 'Welcome back! Rest up — your heroes are fully restored.' },
-  ],
-  blacksmith: [
-    { speaker: 'Blacksmith', text: 'I can help you equip your heroes when gear equipping arrives.' },
-  ],
-  doorkeeper: [
-    { speaker: 'Doorkeeper', text: 'Ready to venture out? Choose your party and I\'ll open the way.' },
-  ],
-}
-
-const BIOME_NAMES: Record<string, string> = {
-  'verdant-forest': 'Verdant Forest',
-  'dungeon-depths': 'Dungeon Depths',
-  'ruined-castle': 'Ruined Castle',
-}
-
-const DOOR_PANELS: Panel[] = [
-  { speaker: 'The Door', text: 'Biome exploration is coming in the next update.' },
-]
-
 const SIDEBAR_WIDTH = 380
+// Open biome — no walls
+const NO_WALLS: number[][] = []
 
-export function ExploreScreen() {
-  const state = createExploreRoom(token, heroIds)
+export function BiomeScreen() {
+  const params = useParams<{ biomeId: string }>()
   const navigate = useNavigate()
-  let boardEl: HTMLElement | undefined
+  const biomeId = () => params.biomeId
 
-  const heroRoster = createHeroes(token)
-  const [partyPickerBiomeId, setPartyPickerBiomeId] = createSignal<string | null>(null)
+  const state = createBiomeRoom(token, heroIds, biomeId)
+  let boardEl: HTMLElement | undefined
 
   const [selectedAbility, setSelectedAbility] = createSignal<AbilityDefinition | null>(null)
   const [usedAbilityTitles, setUsedAbilityTitles] = createSignal<string[]>([])
@@ -60,7 +39,6 @@ export function ExploreScreen() {
   type Doober = { id: string; text: string; color: string }
   const [doobers, setDoobers] = createSignal<Doober[]>([])
 
-  // Clear used abilities when the player's energy resets to max — that only happens at turn start
   createEffect(on(
     () => myActor()?.energy ?? -1,
     (energy) => {
@@ -69,7 +47,6 @@ export function ExploreScreen() {
     }
   ))
 
-  // Spawn doobers when an action result arrives
   createEffect(on(
     () => state.actionResult(),
     (result) => {
@@ -94,11 +71,20 @@ export function ExploreScreen() {
     }
   ))
 
-  const sceneJson = createMemo(() => {
-    const sd: SceneData | null = state.sceneData()
-    if (sd) return JSON.stringify(sd)
-    return JSON.stringify(generateSceneFromInn(THE_INN))
-  })
+  // Forward server-broadcast events to board for other clients' tokens
+  createEffect(on(state.emoteEvent, (ev) => {
+    if (!ev || !boardEl || heroIds().includes(ev.id)) return
+    boardEl.dispatchEvent(new CustomEvent('show-emote', { detail: { id: ev.id, emote: ev.emote } }))
+  }))
+  createEffect(on(state.speechEvent, (ev) => {
+    if (!ev || !boardEl || heroIds().includes(ev.id)) return
+    boardEl.dispatchEvent(new CustomEvent('show-speech', { detail: { id: ev.id, speech: ev.speech } }))
+  }))
+  createEffect(on(state.actionEvent, (ev) => {
+    if (!ev || !boardEl || heroIds().includes(ev.id)) return
+    boardEl.dispatchEvent(new CustomEvent('show-action', { detail: { id: ev.id, action: ev.action } }))
+  }))
+
   const sqContent = useContent()
   const contentJson = () => JSON.stringify(sqContent() ?? {})
 
@@ -106,19 +92,16 @@ export function ExploreScreen() {
     const cs = state.combatState()
     if (!cs) return null
     const playerActors = Object.values(cs.actors).filter((a) => !a.isNPC)
-    // Match by hero ID from session — most reliable
     const ids = heroIds()
     if (ids.length > 0) {
       const byId = playerActors.find((a) => ids.includes(a.id))
       if (byId) return byId.id
     }
-    // Fallback: initial position match
     const myPos = state.myPosition()
     if (myPos) {
       const byPos = playerActors.find((a) => a.position.x === myPos.x && a.position.y === myPos.y)
       if (byPos) return byPos.id
     }
-    // Last resort: only player in this combat (single-player)
     if (playerActors.length === 1) return playerActors[0].id
     return null
   }
@@ -137,11 +120,9 @@ export function ExploreScreen() {
     return cs.actors[heroId] ?? null
   }
 
-  // Build character data for the HUD — prefer heroState (full data), fall back to combat actor
   const characterJson = () => {
     const actor = myActor()
     const h = state.heroState()
-
     if (actor) {
       const energyArray = Array(10).fill(false).map((_, i) => i < actor.energy)
       const base = h ?? {
@@ -162,7 +143,6 @@ export function ExploreScreen() {
         usedAbilities: usedAbilityTitles(),
       })
     }
-
     if (h) return JSON.stringify(h)
     return ''
   }
@@ -171,7 +151,7 @@ export function ExploreScreen() {
     if (!isMyTurn()) return []
     const actor = myActor()
     if (!actor) return []
-    return getReachableCells(actor.position, THE_INN.walls, actor.energy)
+    return getReachableCells(actor.position, NO_WALLS, actor.energy)
   })
 
   const abilityHighlights = createMemo((): Position[] => {
@@ -196,16 +176,10 @@ export function ExploreScreen() {
       return base
     }
     if (!dp) return []
-    // Explore-mode drag: determine highlight kind for drop position
-    const isDialog = state.npcs().some((npc) => {
-      const front = getFrontCell({ x: npc.x, y: npc.y }, npc.direction)
-      return dp.x === front.x && dp.y === front.y
-    }) || state.doors().some((d) => Math.abs(dp.x - d.x) + Math.abs(dp.y - d.y) === 1)
     const isEncounter = Object.values(state.enemies()).some(
       (e) => Math.abs(dp.x - e.x) + Math.abs(dp.y - e.y) <= 3
     )
-    const kind = (isEncounter ? 'encounter' : isDialog ? 'dialog' : 'drop') as 'encounter' | 'dialog' | 'drop'
-    return [{ x: dp.x, y: dp.y, kind }]
+    return [{ x: dp.x, y: dp.y, kind: (isEncounter ? 'encounter' : 'drop') as 'encounter' | 'drop' }]
   })
 
   function handleAbilityActivate(title: string) {
@@ -214,7 +188,6 @@ export function ExploreScreen() {
     if (!actor) return
     const ability = actor.abilities.find((a) => a.name === title)
     if (!ability) return
-    // Toggle: clicking the selected ability deselects it
     setSelectedAbility((prev) => prev?.id === ability.id ? null : ability)
   }
 
@@ -232,7 +205,7 @@ export function ExploreScreen() {
     if (cs && isMyTurn()) {
       const actor = myActor()
       if (!actor) return
-      const cost = getMoveCost(actor.position, { x, y }, THE_INN.walls)
+      const cost = getMoveCost(actor.position, { x, y }, NO_WALLS)
       if (cost !== null && cost <= actor.energy) {
         state.sendAction({ type: 'move', actorId: actor.id, destination: { x, y } })
       }
@@ -255,9 +228,7 @@ export function ExploreScreen() {
           setSelectedAbility(null)
         }
       }
-      return
     }
-    // Explore mode: clicks do nothing — drag to move, interaction triggers on landing
   }
 
   const exploreMap = (): ExploreMap => {
@@ -274,13 +245,6 @@ export function ExploreScreen() {
           spriteId: isMe ? classToSpriteId(state.heroState()?.class) : undefined,
         }
       }),
-      ...state.npcs().map((n) => ({
-        x: n.x, y: n.y,
-        type: 'npc' as const,
-        id: n.id,
-        label: n.name,
-        direction: n.direction,
-      })),
       ...state.doors().map((d) => ({
         x: d.x, y: d.y,
         type: 'door' as const,
@@ -294,24 +258,12 @@ export function ExploreScreen() {
         label: e.name,
       })),
     ]
-    return { walls: THE_INN.walls, tokens }
+    return { walls: NO_WALLS, tokens }
   }
 
-  const interactionPanels = (): Panel[] | null => {
+  const extractPrompt = () => {
     const ev = state.interaction()
-    if (!ev) return null
-    if (ev.type === 'npc') return NPC_PANELS[ev.role] ?? null
-    if (ev.type === 'door') return DOOR_PANELS
-    return null
-  }
-
-  function handleInteractionComplete() {
-    const ev = state.interaction()
-    if (ev?.type === 'npc' && ev.role === 'innkeeper') state.rest()
-    if (ev?.type === 'npc' && ev.role === 'doorkeeper' && ev.biomeId) {
-      setPartyPickerBiomeId(ev.biomeId)
-    }
-    state.dismissInteraction()
+    return ev?.type === 'door' && ev.biomeId === 'inn'
   }
 
   const encounterPanels = (): Panel[] | null => {
@@ -320,23 +272,8 @@ export function ExploreScreen() {
     return [{ speaker: 'Encounter!', text: `A ${ev.enemyName} blocks your path. Prepare for combat!` }]
   }
 
-  // Auto-dismiss encounter panel when combat begins
   createEffect(on(() => state.combatState(), (cs) => {
     if (cs) state.dismissEncounter()
-  }))
-
-  // Forward server-broadcast emote/speech/action events to board (for other clients' tokens)
-  createEffect(on(state.emoteEvent, (ev) => {
-    if (!ev || !boardEl || heroIds().includes(ev.id)) return
-    boardEl.dispatchEvent(new CustomEvent('show-emote', { detail: { id: ev.id, emote: ev.emote } }))
-  }))
-  createEffect(on(state.speechEvent, (ev) => {
-    if (!ev || !boardEl || heroIds().includes(ev.id)) return
-    boardEl.dispatchEvent(new CustomEvent('show-speech', { detail: { id: ev.id, speech: ev.speech } }))
-  }))
-  createEffect(on(state.actionEvent, (ev) => {
-    if (!ev || !boardEl || heroIds().includes(ev.id)) return
-    boardEl.dispatchEvent(new CustomEvent('show-action', { detail: { id: ev.id, action: ev.action } }))
   }))
 
   const currentCombatActor = createMemo(() => {
@@ -347,16 +284,14 @@ export function ExploreScreen() {
 
   return (
     <Show when={!state.error()} fallback={<div style={{ padding: '20px', color: 'red' }}>Connection error: {state.error()}</div>}>
-      <Show when={state.connected()} fallback={<div style={{ padding: '20px', background: '#111', color: '#fff', 'min-height': '100vh' }}>Connecting to The Inn…</div>}>
+      <Show when={state.connected()} fallback={<div style={{ padding: '20px', background: '#111', color: '#fff', 'min-height': '100vh' }}>Entering biome…</div>}>
         <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden' }}>
 
-          {/* Board — fills remaining space left of sidebar */}
           <div style={{ position: 'relative', flex: '1 1 0', 'min-width': 0 }}>
             <PlaysetBoard
               mode={state.combatState() ? 'combat' : 'explore'}
-              roomId="inn"
+              roomId={biomeId()}
               exploreMap={exploreMap()}
-              sceneJson={sceneJson()}
               combatState={state.combatState() ?? undefined}
               myActorId={myHeroId() ?? undefined}
               highlights={highlights()}
@@ -396,11 +331,7 @@ export function ExploreScreen() {
                 </span>
                 <button
                   onClick={() => setSelectedAbility(null)}
-                  style={{
-                    background: 'none', border: '1px solid rgba(255,255,255,0.15)',
-                    'border-radius': '4px', color: '#888', cursor: 'pointer',
-                    'font-size': '11px', padding: '2px 8px',
-                  }}
+                  style={{ background: 'none', border: '1px solid rgba(255,255,255,0.15)', 'border-radius': '4px', color: '#888', cursor: 'pointer', 'font-size': '11px', padding: '2px 8px' }}
                 >
                   cancel
                 </button>
@@ -419,7 +350,7 @@ export function ExploreScreen() {
               </div>
             </Show>
 
-            {/* Doobers — floating damage/heal numbers */}
+            {/* Doobers */}
             <Show when={doobers().length > 0}>
               <style>{`
                 @keyframes doober-rise {
@@ -437,10 +368,7 @@ export function ExploreScreen() {
               }}>
                 <For each={doobers()}>
                   {(d) => (
-                    <div class="doober-item" style={{
-                      color: d.color, 'font-size': '20px', 'font-weight': '800',
-                      'text-shadow': '0 2px 6px rgba(0,0,0,0.9)', 'white-space': 'nowrap',
-                    }}>
+                    <div class="doober-item" style={{ color: d.color, 'font-size': '20px', 'font-weight': '800', 'text-shadow': '0 2px 6px rgba(0,0,0,0.9)', 'white-space': 'nowrap' }}>
                       {d.text}
                     </div>
                   )}
@@ -450,11 +378,7 @@ export function ExploreScreen() {
 
             {/* Join combat offer */}
             <Show when={state.joinOffer()}>
-              <div style={{
-                position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
-                'z-index': '20', background: 'rgba(5,10,5,0.95)', border: '1px solid rgba(255,200,50,0.3)',
-                'border-radius': '8px', padding: '20px 28px', 'text-align': 'center',
-              }}>
+              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', 'z-index': '20', background: 'rgba(5,10,5,0.95)', border: '1px solid rgba(255,200,50,0.3)', 'border-radius': '8px', padding: '20px 28px', 'text-align': 'center' }}>
                 <div style={{ color: '#fa0', 'font-size': '14px', 'margin-bottom': '12px' }}>A battle is nearby!</div>
                 <div style={{ display: 'flex', gap: '8px', 'justify-content': 'center' }}>
                   <button onClick={state.joinCombat} style={{ padding: '6px 16px', background: 'rgba(80,160,80,0.2)', color: '#6f6', border: '1px solid #3a5a3a', 'border-radius': '4px', cursor: 'pointer' }}>Join</button>
@@ -465,10 +389,7 @@ export function ExploreScreen() {
 
             {/* Combat results overlay */}
             <Show when={state.combatResult()}>
-              <div style={{
-                position: 'absolute', inset: '0', 'z-index': '30', background: 'rgba(0,0,0,0.7)',
-                display: 'flex', 'align-items': 'center', 'justify-content': 'center',
-              }}>
+              <div style={{ position: 'absolute', inset: '0', 'z-index': '30', background: 'rgba(0,0,0,0.7)', display: 'flex', 'align-items': 'center', 'justify-content': 'center' }}>
                 <div style={{ background: 'rgba(5,10,5,0.97)', border: '1px solid rgba(255,255,255,0.1)', 'border-radius': '10px', padding: '32px 40px', 'text-align': 'center', 'max-width': '360px' }}>
                   <Show when={state.combatResult() === 'win'}>
                     <div style={{ color: '#6f6', 'font-size': '22px', 'margin-bottom': '8px' }}>Victory!</div>
@@ -484,40 +405,41 @@ export function ExploreScreen() {
                       </div>
                     </Show>
                     <button
-                      onClick={() => { state.dismissCombatResult(); navigate('/') }}
+                      onClick={() => { state.dismissCombatResult(); navigate('/inn') }}
                       style={{ padding: '8px 24px', background: 'rgba(160,50,50,0.2)', color: '#f88', border: '1px solid #5a3a3a', 'border-radius': '4px', cursor: 'pointer' }}
                     >
-                      Return to Roster
+                      Return to Inn
                     </button>
                   </Show>
                 </div>
               </div>
             </Show>
 
-            {/* Interaction comic panel */}
-            <Show when={interactionPanels()}>
-              {(panels) => (
-                <div style={{ position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', 'max-width': '480px', width: '100%', 'z-index': '10' }}>
-                  <ComicPlayer panels={panels()} onComplete={handleInteractionComplete} />
+            {/* Extract prompt */}
+            <Show when={extractPrompt()}>
+              <div style={{
+                position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)',
+                'z-index': '20', background: 'rgba(5,10,5,0.96)', border: '1px solid rgba(255,255,255,0.12)',
+                'border-radius': '10px', padding: '18px 24px', display: 'flex', 'flex-direction': 'column',
+                gap: '12px', 'min-width': '280px',
+              }}>
+                <div style={{ color: '#e0e0e0', 'font-size': '14px', 'font-weight': '600' }}>Return to the Inn?</div>
+                <div style={{ color: '#888', 'font-size': '12px' }}>Your heroes will return with everything they've found.</div>
+                <div style={{ display: 'flex', gap: '10px', 'justify-content': 'flex-end' }}>
+                  <button
+                    onClick={() => state.dismissInteraction()}
+                    style={{ padding: '6px 16px', 'font-size': '12px', cursor: 'pointer', background: 'transparent', color: '#888', border: '1px solid rgba(255,255,255,0.15)', 'border-radius': '5px' }}
+                  >
+                    Stay
+                  </button>
+                  <button
+                    onClick={() => { state.dismissInteraction(); navigate('/inn') }}
+                    style={{ padding: '6px 18px', 'font-size': '12px', 'font-weight': '600', cursor: 'pointer', background: 'rgba(80,180,100,0.2)', color: '#7de89a', border: '1px solid rgba(80,180,100,0.4)', 'border-radius': '5px' }}
+                  >
+                    Return to Inn
+                  </button>
                 </div>
-              )}
-            </Show>
-
-            {/* Party picker — shown after doorkeeper comic completes */}
-            <Show when={partyPickerBiomeId()}>
-              {(biomeId) => (
-                <PartyPicker
-                  biomeId={biomeId()}
-                  biomeName={BIOME_NAMES[biomeId()] ?? biomeId()}
-                  heroes={heroRoster.heroes}
-                  onConfirm={(ids) => {
-                    setPartyPickerBiomeId(null)
-                    setHeroIds(ids)
-                    navigate(`/biome/${biomeId()}`)
-                  }}
-                  onCancel={() => setPartyPickerBiomeId(null)}
-                />
-              )}
+              </div>
             </Show>
 
             {/* Encounter comic panel */}
@@ -529,24 +451,17 @@ export function ExploreScreen() {
               )}
             </Show>
 
-            {/* Hint text */}
             <div style={{ position: 'absolute', bottom: '10px', left: '10px', 'font-size': '11px', color: 'rgba(255,255,255,0.3)', 'z-index': '10', 'pointer-events': 'none' }}>
-              Drag your token to move
+              Drag your token to move · Walk to the spawn pad to extract
             </div>
           </div>
 
           {/* Right sidebar — SimpleQuest HUD + combat controls */}
           <div style={{
-            width: `${SIDEBAR_WIDTH}px`,
-            'flex-shrink': '0',
-            height: '100vh',
-            overflow: 'auto',
-            background: 'rgba(8,12,8,0.97)',
-            'border-left': '1px solid rgba(255,255,255,0.07)',
-            display: 'flex',
-            'flex-direction': 'column',
+            width: `${SIDEBAR_WIDTH}px`, 'flex-shrink': '0', height: '100vh', overflow: 'auto',
+            background: 'rgba(8,12,8,0.97)', 'border-left': '1px solid rgba(255,255,255,0.07)',
+            display: 'flex', 'flex-direction': 'column',
           }}>
-            {/* SimpleQuest HUD — live character status + ability cards; scrolls internally */}
             <div style={{ flex: '1 1 0', overflow: 'hidden', display: 'flex', 'flex-direction': 'column', 'min-height': '0' }}>
               <SimpleQuestHUD
                 content={contentJson()}
@@ -556,35 +471,17 @@ export function ExploreScreen() {
               />
             </div>
 
-            {/* Combat controls — only shown during combat on player's turn */}
             <Show when={state.combatState() && isMyTurn()}>
-              <div style={{
-                'flex-shrink': '0',
-                padding: '10px 14px',
-                'border-top': '1px solid rgba(255,255,255,0.07)',
-                display: 'flex',
-                'flex-direction': 'column',
-                gap: '8px',
-              }}>
+              <div style={{ 'flex-shrink': '0', padding: '10px 14px', 'border-top': '1px solid rgba(255,255,255,0.07)', display: 'flex', 'flex-direction': 'column', gap: '8px' }}>
                 <Show when={selectedAbility()}>
                   <div style={{ 'font-size': '11px', color: '#6f6', padding: '4px 0' }}>
                     {'▶'} {selectedAbility()!.name} selected — click an enemy to attack
-                    <button
-                      onClick={() => setSelectedAbility(null)}
-                      style={{ 'margin-left': '8px', background: 'none', border: 'none', color: '#888', cursor: 'pointer', 'font-size': '11px' }}
-                    >
-                      cancel
-                    </button>
+                    <button onClick={() => setSelectedAbility(null)} style={{ 'margin-left': '8px', background: 'none', border: 'none', color: '#888', cursor: 'pointer', 'font-size': '11px' }}>cancel</button>
                   </div>
                 </Show>
                 <button
                   onClick={() => { setSelectedAbility(null); state.endTurn() }}
-                  style={{
-                    padding: '8px', 'font-size': '12px', cursor: 'pointer',
-                    background: 'rgba(10,10,30,0.9)', color: '#aaf',
-                    border: '1px solid rgba(150,150,255,0.25)', 'border-radius': '5px',
-                    'font-weight': '600',
-                  }}
+                  style={{ padding: '8px', 'font-size': '12px', cursor: 'pointer', background: 'rgba(10,10,30,0.9)', color: '#aaf', border: '1px solid rgba(150,150,255,0.25)', 'border-radius': '5px', 'font-weight': '600' }}
                 >
                   End Turn
                 </button>
