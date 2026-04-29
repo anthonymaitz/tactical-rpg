@@ -7,7 +7,7 @@ RUN npm install -g pnpm ts-node && \
     curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:$PATH"
 
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml tsconfig.base.json ./
 COPY patches/ ./patches/
 COPY packages/shared-types/package.json ./packages/shared-types/
 COPY packages/rules-engine/package.json ./packages/rules-engine/
