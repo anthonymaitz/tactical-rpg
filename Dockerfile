@@ -18,6 +18,6 @@ COPY packages/shared-types/ ./packages/shared-types/
 COPY packages/rules-engine/ ./packages/rules-engine/
 COPY server/ ./server/
 
-# game: ts-node ESM for emitDecoratorMetadata (@colyseus/schema decorators)
+# game: node --import ts-node/esm (Node 20 way to register ESM loader hooks)
 # api:  bun for Bun.serve()
-CMD ["sh", "-c", "if [ \"$SERVICE\" = \"game\" ]; then cd server && ts-node src/index-game.ts; else bun run server/src/index-api.ts; fi"]
+CMD ["sh", "-c", "if [ \"$SERVICE\" = \"game\" ]; then cd server && node --import ts-node/esm src/index-game.ts; else bun run server/src/index-api.ts; fi"]
