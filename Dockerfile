@@ -20,4 +20,4 @@ COPY server/ ./server/
 
 # game: node --import ts-node/esm (Node 20 way to register ESM loader hooks)
 # api:  bun for Bun.serve()
-CMD ["sh", "-c", "if [ \"$SERVICE\" = \"game\" ]; then cd server && node --loader ts-node/esm --no-warnings src/index-game.ts; else bun run server/src/index-api.ts; fi"]
+CMD ["sh", "-c", "if [ \"$SERVICE\" = \"game\" ]; then cd server && node_modules/.bin/ts-node src/index-game.ts; else bun run server/src/index-api.ts; fi"]

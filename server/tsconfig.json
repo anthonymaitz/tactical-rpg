@@ -13,10 +13,10 @@
     { "path": "../packages/rules-engine" }
   ],
   "ts-node": {
-    "esm": true,
     "transpileOnly": true,
     "compilerOptions": {
-      "moduleResolution": "node16"
+      "module": "CommonJS",
+      "moduleResolution": "node"
     }
   }
 }
