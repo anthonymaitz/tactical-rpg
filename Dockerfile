@@ -1,8 +1,8 @@
 FROM node:20-alpine
 WORKDIR /app
 
-# Install pnpm, bun, and ts-node (ts-node needed for game service: emitDecoratorMetadata)
-RUN npm install -g pnpm ts-node && \
+# Install pnpm and bun (ts-node comes from pnpm workspace devDependencies)
+RUN npm install -g pnpm && \
     apk add --no-cache bash curl unzip && \
     curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:$PATH"
