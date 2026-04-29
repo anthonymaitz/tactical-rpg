@@ -1,6 +1,6 @@
 import { Client, type Room } from 'colyseus.js'
 
-const DEFAULT_SERVER_URL = import.meta.env.VITE_SERVER_URL ?? 'ws://localhost:2567'
+const DEFAULT_SERVER_URL = import.meta.env.VITE_SERVER_URL
 let client: Client | null = null
 
 function getClient(): Client {

@@ -1,7 +1,7 @@
 import { createResource } from 'solid-js'
 import type { SimpleQuestContent } from 'simplequest-hud'
 
-const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
+const API = import.meta.env.VITE_API_URL
 
 async function fetchContent(): Promise<SimpleQuestContent> {
   const res = await fetch(`${API}/content`)

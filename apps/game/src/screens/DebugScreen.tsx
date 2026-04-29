@@ -2,7 +2,7 @@ import { createSignal, createEffect, For, Show } from 'solid-js'
 import { supabase } from '../lib/supabase'
 import type { HeroRecord, PlayerInventory } from 'shared-types'
 
-const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
+const API = import.meta.env.VITE_API_URL
 
 async function apiFetch<T>(path: string, token: string, body?: object): Promise<T> {
   const res = await fetch(`${API}${path}`, {
