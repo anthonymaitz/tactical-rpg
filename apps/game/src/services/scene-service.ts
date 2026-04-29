@@ -13,8 +13,9 @@ export async function fetchScene(slug: string): Promise<SceneData | null> {
 
 export async function upsertScene(slug: string, sceneData: SceneData): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser()
-  await supabase.from('scenes').upsert(
+  const { error } = await supabase.from('scenes').upsert(
     { slug, scene_data: sceneData, created_by: user?.id, updated_at: new Date().toISOString() },
     { onConflict: 'slug' },
   )
+  if (error) throw new Error(error.message)
 }

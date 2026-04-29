@@ -24,7 +24,7 @@ declare module 'solid-js' {
 export default function BuildScreen() {
   const params = useParams<{ slug: string }>()
   const navigate = useNavigate()
-  const [saveStatus, setSaveStatus] = createSignal<'idle' | 'saving' | 'saved'>('idle')
+  const [saveStatus, setSaveStatus] = createSignal<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [sceneJson, setSceneJson] = createSignal<string>(
     JSON.stringify(generateSceneFromInn(THE_INN)),
   )
@@ -38,16 +38,22 @@ export default function BuildScreen() {
     }
 
     const data = await fetchScene(params.slug)
-    if (data) {
+    if (data && (data.tokens?.length ?? 0) > 0) {
       setSceneJson(JSON.stringify(data))
     }
 
     async function handleSceneChange(e: Event) {
       const { scene } = (e as CustomEvent<{ scene: SceneData }>).detail
       setSaveStatus('saving')
-      await upsertScene(params.slug, scene)
-      setSaveStatus('saved')
-      setTimeout(() => setSaveStatus('idle'), 2000)
+      try {
+        await upsertScene(params.slug, scene)
+        setSaveStatus('saved')
+        setTimeout(() => setSaveStatus('idle'), 2000)
+      } catch (err) {
+        setSaveStatus('error')
+        console.error('[BuildScreen] save failed:', err)
+        setTimeout(() => setSaveStatus('idle'), 4000)
+      }
     }
 
     boardEl.addEventListener('scenechange', handleSceneChange)
@@ -57,7 +63,7 @@ export default function BuildScreen() {
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
       <div style={{ position: 'absolute', top: '8px', right: '12px', 'z-index': '10', color: '#fff', 'font-size': '12px' }}>
-        {saveStatus() === 'saving' ? 'Saving…' : saveStatus() === 'saved' ? 'Saved ✓' : `Editing: ${params.slug}`}
+        {saveStatus() === 'saving' ? 'Saving…' : saveStatus() === 'saved' ? 'Saved ✓' : saveStatus() === 'error' ? 'Save failed — check console' : `Editing: ${params.slug}`}
       </div>
       <playsets-board
         ref={boardEl}

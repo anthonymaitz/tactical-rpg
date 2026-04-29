@@ -1,5 +1,4 @@
 import type { Client } from '@colyseus/core'
-import type { RealtimeChannel } from '@supabase/supabase-js'
 import { ExploreState, PlayerPosition, NpcEntity, DoorEntity, EnemyEntity } from '../schemas/ExploreState'
 import { BaseRoom } from './BaseRoom'
 import { EnemyManager } from './EnemyManager'
@@ -22,7 +21,6 @@ const RECOVERY_HOURS = 8
 export class ExploreRoom extends BaseRoom<ExploreState> {
   private _sceneData: SceneData = generateSceneFromInn(THE_INN)
   private enemyManager!: EnemyManager
-  private _realtimeChannel?: RealtimeChannel
   private _combat: InPlaceCombatEngine | null = null
   private _combatParticipants: Set<string> = new Set()
   private _combatHeroActorIds: Map<string, string> = new Map()
@@ -38,7 +36,7 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
 
     if (error) {
       console.warn(`[ExploreRoom] Failed to fetch scene '${SCENE_SLUG}':`, error.message)
-    } else if (data?.scene_data) {
+    } else if (data?.scene_data && ((data.scene_data as SceneData).tokens?.length ?? 0) > 0) {
       this._sceneData = data.scene_data as SceneData
     }
 
@@ -68,12 +66,6 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       (partial) => Object.assign(new EnemyEntity(), partial),
       this._sceneData.tokens ?? [],
     )
-
-    this._realtimeChannel = supabase
-      .channel(`scene-${SCENE_SLUG}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'scenes', filter: `slug=eq.${SCENE_SLUG}` },
-        () => { this.reloadScene() })
-      .subscribe()
 
     this.onMessage<{ emote: string }>('EMOTE', (client, msg) => {
       const actorId = (client.userData as { heroIds?: string[] })?.heroIds?.[0]
@@ -187,56 +179,6 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     if (this.state.players.has(client.sessionId)) {
       this.state.players.delete(client.sessionId)
     }
-  }
-
-  async onDispose(): Promise<void> {
-    if (this._realtimeChannel) {
-      try {
-        await supabase.removeChannel(this._realtimeChannel)
-      } catch {
-        // @supabase/phoenix's socket adapter calls .close() on a Node.js ws connection
-        // that doesn't expose it at the expected path — safe to ignore
-      }
-    }
-  }
-
-  private async reloadScene(): Promise<void> {
-    const { data } = await supabase
-      .from('scenes')
-      .select('scene_data')
-      .eq('slug', SCENE_SLUG)
-      .maybeSingle()
-    if (!data?.scene_data) return
-    this._sceneData = data.scene_data as SceneData
-
-    this.state.npcs.splice(0)
-    this.state.doors.splice(0)
-    const enemyIds: string[] = []
-    this.state.enemies.forEach((_, id) => enemyIds.push(id))
-    for (const id of enemyIds) this.state.enemies.delete(id)
-
-    for (const token of this._sceneData.tokens ?? []) {
-      if (token.type === 'npc') {
-        const entity = new NpcEntity()
-        entity.id = token.id; entity.name = token.name ?? ''
-        entity.role = token.role ?? ''; entity.x = token.col; entity.y = token.row
-        entity.direction = token.direction ?? 's'
-        this.state.npcs.push(entity)
-      } else if (token.type === 'door') {
-        const entity = new DoorEntity()
-        entity.id = token.id; entity.biomeId = token.biomeId ?? ''
-        entity.label = token.label ?? ''; entity.x = token.col; entity.y = token.row
-        this.state.doors.push(entity)
-      }
-    }
-
-    this.enemyManager = new EnemyManager(
-      this.state.enemies,
-      (partial) => Object.assign(new EnemyEntity(), partial),
-      this._sceneData.tokens ?? [],
-    )
-
-    this.broadcast('SCENE_STATE', this._sceneData)
   }
 
   private async handleMove(client: Client, message: MoveMessage): Promise<void> {
