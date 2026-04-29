@@ -1,9 +1,11 @@
-FROM oven/bun:1
+FROM node:20-alpine
 WORKDIR /app
 
-# Use pnpm for workspace installs (oven/bun has no npm, use standalone installer)
-RUN curl -fsSL https://get.pnpm.io/install.sh | env PNPM_HOME="/usr/local/pnpm" sh -
-ENV PATH="/usr/local/pnpm:$PATH"
+# Install pnpm and bun
+RUN npm install -g pnpm && \
+    apk add --no-cache bash curl unzip && \
+    curl -fsSL https://bun.sh/install | bash
+ENV PATH="/root/.bun/bin:$PATH"
 
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY patches/ ./patches/
