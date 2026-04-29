@@ -9,7 +9,7 @@ const BuildScreen = lazy(() => import('./screens/BuildScreen'))
 
 export default function App() {
   return (
-    <Router>
+    <Router base={import.meta.env.BASE_URL}>
       <Route path="/" component={ConnectScreen} />
       <Route path="/inn" component={ExploreScreen} />
       <Route path="/biome/:biomeId" component={BiomeScreen} />
