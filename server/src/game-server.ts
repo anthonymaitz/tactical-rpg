@@ -1,12 +1,12 @@
 import { Server } from '@colyseus/core'
-import { BunWebSockets } from '@colyseus/bun-websockets'
+import { WsTransport } from '@colyseus/ws-transport'
 import { ExploreRoom } from './rooms/ExploreRoom'
 import { BiomeRoom } from './rooms/BiomeRoom'
 import { TurnRoom } from './rooms/TurnRoom'
 import { CombatRoom } from './rooms/CombatRoom'
 
 export function createGameServer(): Server {
-  const transport = new BunWebSockets()
+  const transport = new WsTransport()
   const server = new Server({ transport })
 
   server.define('ExploreRoom', ExploreRoom)
