@@ -18,8 +18,5 @@ COPY packages/shared-types/ ./packages/shared-types/
 COPY packages/rules-engine/ ./packages/rules-engine/
 COPY server/ ./server/
 
-# SERVICE=game|api — set as Railway build variable per service
-ARG SERVICE=game
-ENV SERVICE=${SERVICE}
-
+# SERVICE=game|api must be set as a Railway environment variable per service
 CMD ["sh", "-c", "bun run server/src/index-${SERVICE}.ts"]
