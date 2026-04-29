@@ -139,17 +139,19 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
 
       const userData = client.userData as { userId?: string; heroIds?: string[] }
       let heroIds = userData?.heroIds ?? []
+      console.log(`[ExploreRoom] READY from ${client.sessionId} userId=${userData?.userId} heroIds=${JSON.stringify(heroIds)}`)
 
       // If client session has no heroIds, resolve them from the authenticated user
       if (heroIds.length === 0 && userData.userId) {
         const heroes = await heroService.listHeroes(userData.userId)
         heroIds = heroes.map((h) => h.id)
+        console.log(`[ExploreRoom] resolved heroIds from DB: ${JSON.stringify(heroIds)}`)
         client.userData = { ...userData, heroIds } as typeof client.userData
       }
 
-      if (heroIds.length === 0) return
+      if (heroIds.length === 0) { console.log(`[ExploreRoom] no heroIds, skipping HERO_STATE`); return }
       const hero = await heroService.getHero(heroIds[0])
-      if (!hero) return
+      if (!hero) { console.log(`[ExploreRoom] hero ${heroIds[0]} not found`); return }
       const maxHp = hero.maxHp > 0 ? hero.maxHp : 10
       // Inn auto-heals — restore HP to full on every entry
       await heroService.restoreHp(hero.id)
@@ -170,6 +172,7 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
   }
 
   async onJoin(client: Client, options: { token?: string; heroIds?: string[] }): Promise<void> {
+    console.log(`[ExploreRoom] onJoin ${client.sessionId} heroIds=${JSON.stringify(options.heroIds)}`)
     const userId = await this.verifyToken(options.token)
     const pos = new PlayerPosition()
     pos.x = THE_INN.spawnX
@@ -187,7 +190,14 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
   }
 
   async onDispose(): Promise<void> {
-    if (this._realtimeChannel) await supabase.removeChannel(this._realtimeChannel)
+    if (this._realtimeChannel) {
+      try {
+        await supabase.removeChannel(this._realtimeChannel)
+      } catch {
+        // @supabase/phoenix's socket adapter calls .close() on a Node.js ws connection
+        // that doesn't expose it at the expected path — safe to ignore
+      }
+    }
   }
 
   private async reloadScene(): Promise<void> {
