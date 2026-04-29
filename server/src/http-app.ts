@@ -8,7 +8,15 @@ import { debugRoutes } from './routes/debug'
 
 export function createHttpApp(): Hono {
   const app = new Hono()
-  app.use('*', cors({ origin: (origin) => origin?.startsWith('http://localhost:') ? origin : 'http://localhost:5173' }))
+  app.use('*', cors({
+    origin: (origin) => {
+      if (!origin) return '*'
+      if (origin.startsWith('http://localhost:')) return origin
+      if (origin === 'https://anthony.maitz.work') return origin
+      if (origin.endsWith('.railway.app')) return origin
+      return null
+    }
+  }))
   app.get('/health', (c) => c.json({ status: 'ok' }))
   app.route('/heroes', heroRoutes)
   app.route('/content', contentRoutes)
