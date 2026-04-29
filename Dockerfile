@@ -1,8 +1,9 @@
 FROM oven/bun:1
 WORKDIR /app
 
-# Use pnpm for workspace installs (repo uses pnpm-lock.yaml)
-RUN npm install -g pnpm
+# Use pnpm for workspace installs (oven/bun has no npm, use standalone installer)
+RUN curl -fsSL https://get.pnpm.io/install.sh | env PNPM_HOME="/usr/local/pnpm" sh -
+ENV PATH="/usr/local/pnpm:$PATH"
 
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY patches/ ./patches/
@@ -19,4 +20,4 @@ COPY server/ ./server/
 ARG SERVICE=game
 ENV SERVICE=${SERVICE}
 
-CMD bun run server/src/index-${SERVICE}.ts
+CMD ["sh", "-c", "bun run server/src/index-${SERVICE}.ts"]
