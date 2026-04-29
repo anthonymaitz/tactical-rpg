@@ -18,6 +18,6 @@ COPY packages/shared-types/ ./packages/shared-types/
 COPY packages/rules-engine/ ./packages/rules-engine/
 COPY server/ ./server/
 
-# game: ts-node for emitDecoratorMetadata (@colyseus/schema decorators)
+# game: ts-node ESM for emitDecoratorMetadata (@colyseus/schema decorators)
 # api:  bun for Bun.serve()
-CMD ["sh", "-c", "if [ \"$SERVICE\" = \"game\" ]; then cd server && ts-node --transpile-only src/index-game.ts; else bun run server/src/index-api.ts; fi"]
+CMD ["sh", "-c", "if [ \"$SERVICE\" = \"game\" ]; then cd server && ts-node src/index-game.ts; else bun run server/src/index-api.ts; fi"]

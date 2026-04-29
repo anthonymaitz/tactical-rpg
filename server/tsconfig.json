@@ -11,5 +11,12 @@
   "references": [
     { "path": "../packages/shared-types" },
     { "path": "../packages/rules-engine" }
-  ]
+  ],
+  "ts-node": {
+    "esm": true,
+    "transpileOnly": true,
+    "compilerOptions": {
+      "moduleResolution": "node16"
+    }
+  }
 }
