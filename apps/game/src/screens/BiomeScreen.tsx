@@ -240,9 +240,12 @@ export function BiomeScreen() {
   }
 
   const exploreMap = (): ExploreMap => {
+    const myId = state.mySessionId()
+    const myPos = myId ? state.players()[myId] : null
+    const partyIds = heroIds()
     const tokens: ExploreToken[] = [
       ...Object.entries(state.players()).map(([id, p]) => {
-        const isMe = id === state.mySessionId()
+        const isMe = id === myId
         return {
           x: p.x, y: p.y,
           type: 'player' as const,
@@ -253,6 +256,20 @@ export function BiomeScreen() {
           spriteId: isMe ? classToSpriteId(state.heroState()?.class) : undefined,
         }
       }),
+      // Companion heroes (party members beyond the first) follow the lead hero
+      ...(myPos && partyIds.length > 1 ? partyIds.slice(1).map((heroId, i) => {
+        const companion = heroRoster.heroes().find((h) => h.id === heroId)
+        return {
+          x: myPos.x,
+          y: myPos.y + (i + 1),
+          type: 'player' as const,
+          id: heroId,
+          label: companion?.name ?? heroId,
+          isMe: false,
+          direction: myPos.direction,
+          spriteId: classToSpriteId(companion?.characterClass),
+        }
+      }) : []),
       ...state.doors().map((d) => ({
         x: d.x, y: d.y,
         type: 'door' as const,

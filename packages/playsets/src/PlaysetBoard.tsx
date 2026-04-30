@@ -6,12 +6,14 @@ import { getGridTiles } from './GridRenderer'
 import type { PlaysetBoardProps } from './types'
 import { MeshBuilder, Vector3 } from '@babylonjs/core'
 
+const _spriteBase = (import.meta.env.BASE_URL ?? '').replace(/\/$/, '')
+
 function classToSpriteId(cls?: string): string | undefined {
   if (!cls) return undefined
   const c = cls.toLowerCase()
-  if (c === 'fighter' || c === 'warrior') return '/assets/sprites/tokens/warrior.svg'
-  if (c === 'mage' || c === 'wizard') return '/assets/sprites/tokens/mage.svg'
-  if (c === 'rogue' || c === 'thief') return '/assets/sprites/tokens/rogue.svg'
+  if (c === 'fighter' || c === 'warrior') return `${_spriteBase}/assets/sprites/tokens/warrior.svg`
+  if (c === 'mage' || c === 'wizard') return `${_spriteBase}/assets/sprites/tokens/mage.svg`
+  if (c === 'rogue' || c === 'thief') return `${_spriteBase}/assets/sprites/tokens/rogue.svg`
   return undefined
 }
 
