@@ -5,6 +5,9 @@ import type { Position, SceneData, EncounterEvent, CombatState, Action, ActionRe
 import type { CharacterData } from 'simplequest-hud'
 import { supabase } from '../lib/supabase'
 
+// Server constants — must match BiomeRoom.ts SPAWN_X / SPAWN_Y - 2
+const BIOME_SPAWN = { x: 50, y: 48 }
+
 type PlayerPosition = { x: number; y: number; characterId: string; direction: string; onChange: (cb: () => void) => void }
 type DoorEntity = { id: string; biomeId: string; label: string; x: number; y: number }
 type EnemyEntity = { id: string; name: string; x: number; y: number; hp: number; maxHp: number; level: number }
@@ -77,7 +80,9 @@ export function createBiomeRoom(
       setMySessionId(r.sessionId)
       setConnected(true)
 
+      // Schema onAdd callbacks kept for diagnostics — fires only if binary schema sync works
       r.state.players.onAdd((player: PlayerPosition, sessionId: string) => {
+        console.log('[useBiomeRoom] schema onAdd player', sessionId)
         setPlayers((prev) => ({ ...prev, [sessionId]: { x: player.x, y: player.y, characterId: player.characterId, direction: player.direction } }))
         player.onChange(() => {
           setPlayers((prev) => ({ ...prev, [sessionId]: { x: player.x, y: player.y, characterId: player.characterId, direction: player.direction } }))
@@ -87,9 +92,11 @@ export function createBiomeRoom(
         setPlayers((prev) => { const next = { ...prev }; delete next[sessionId]; return next })
       })
       r.state.doors.onAdd((door: DoorEntity) => {
+        console.log('[useBiomeRoom] schema onAdd door', door.id)
         setDoors((prev) => [...prev, { id: door.id, biomeId: door.biomeId, label: door.label, x: door.x, y: door.y }])
       })
       r.state.enemies.onAdd((enemy: EnemyEntity, id: string) => {
+        console.log('[useBiomeRoom] schema onAdd enemy', id)
         setEnemies((prev) => ({ ...prev, [id]: { id: enemy.id, name: enemy.name, x: enemy.x, y: enemy.y } }))
       })
       r.state.enemies.onRemove((_: unknown, id: string) => {
@@ -101,9 +108,38 @@ export function createBiomeRoom(
       })
       r.onMessage('HERO_STATE', (data: CharacterData) => {
         setHeroState(data)
+        // Add self player at spawn if schema onAdd never fired
+        setPlayers((prev) => {
+          if (prev[r.sessionId]) return prev
+          return { ...prev, [r.sessionId]: { x: BIOME_SPAWN.x, y: BIOME_SPAWN.y, characterId: r.sessionId, direction: 's' } }
+        })
       })
       r.onMessage('SCENE_STATE', (data: SceneData) => {
         setSceneData(data)
+        // Populate doors directly from scene JSON (bypasses schema binary sync)
+        const sceneDoors = (data.tokens ?? [])
+          .filter((t) => t.type === 'door')
+          .map((t) => ({ id: t.id, biomeId: t.biomeId ?? '', label: t.label ?? '', x: t.col, y: t.row }))
+        if (sceneDoors.length > 0) setDoors(sceneDoors)
+      })
+      // JSON position updates — used when binary schema sync is unavailable
+      r.onMessage('PLAYER_LIST', (data: Array<{ sessionId: string; x: number; y: number; direction: string }>) => {
+        setPlayers((prev) => {
+          const updates: Record<string, PlayerState> = {}
+          for (const p of data) {
+            updates[p.sessionId] = { x: p.x, y: p.y, characterId: p.sessionId, direction: p.direction }
+          }
+          return { ...updates, ...prev }
+        })
+      })
+      r.onMessage('PLAYER_MOVED', (data: { sessionId: string; x: number; y: number; direction: string }) => {
+        setPlayers((prev) => ({
+          ...prev,
+          [data.sessionId]: { x: data.x, y: data.y, characterId: prev[data.sessionId]?.characterId ?? data.sessionId, direction: data.direction },
+        }))
+      })
+      r.onMessage('PLAYER_LEFT', (data: { sessionId: string }) => {
+        setPlayers((prev) => { const next = { ...prev }; delete next[data.sessionId]; return next })
       })
       r.onMessage('ENCOUNTER', (data: EncounterEvent) => {
         setEncounter(data)
@@ -167,6 +203,7 @@ export function createBiomeRoom(
     interaction,
     encounter,
     heroState,
+    sceneData,
     combatState,
     combatResult,
     recoveryEndsAt,

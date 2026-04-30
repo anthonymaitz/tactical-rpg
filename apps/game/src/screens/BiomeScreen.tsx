@@ -1,6 +1,6 @@
 import { createSignal, createMemo, createEffect, on, For, Show } from 'solid-js'
 import { getReachableCells, getMoveCost } from 'shared-types'
-import type { ExploreMap, ExploreToken, AbilityDefinition, Position } from 'shared-types'
+import type { ExploreMap, ExploreToken, AbilityDefinition, Position, SceneData } from 'shared-types'
 import type { Panel } from 'click-comics'
 import { createBiomeRoom } from '../hooks/useBiomeRoom'
 import { createHeroes } from '../hooks/useHeroes'
@@ -81,6 +81,12 @@ export function BiomeScreen() {
     if (!ev || !boardEl || heroIds().includes(ev.id)) return
     boardEl.dispatchEvent(new CustomEvent('show-action', { detail: { id: ev.id, action: ev.action } }))
   }))
+
+  const sceneJson = () => {
+    const sd: SceneData | null = state.sceneData()
+    if (sd) return JSON.stringify(sd)
+    return JSON.stringify({ buildings: [], layers: [{ id: 1, background: 'grass' }], props: [], tokens: [], weather: 'sunny' })
+  }
 
   const sqContent = useContent()
   const contentJson = () => JSON.stringify(sqContent() ?? {})
@@ -294,6 +300,7 @@ export function BiomeScreen() {
               mode={state.combatState() ? 'combat' : 'explore'}
               roomId={biomeId()}
               exploreMap={exploreMap()}
+              sceneJson={sceneJson()}
               combatState={state.combatState() ?? undefined}
               myActorId={myHeroId() ?? undefined}
               highlights={highlights()}
