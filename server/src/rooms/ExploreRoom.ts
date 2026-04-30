@@ -123,11 +123,21 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
 
     this.onMessage<{ direction: string }>('FACE', (client, message) => {
       const player = this.state.players.get(client.sessionId)
-      if (player) player.direction = message.direction
+      if (player) {
+        player.direction = message.direction
+        this.broadcast('PLAYER_MOVED', { sessionId: client.sessionId, x: player.x, y: player.y, direction: player.direction })
+      }
     })
 
     this.onMessage('READY', async (client) => {
       client.send('SCENE_STATE', this._sceneData)
+
+      // Send JSON snapshot of existing players so client can render them without binary schema sync
+      const playerList: Array<{ sessionId: string; x: number; y: number; direction: string }> = []
+      this.state.players.forEach((player, sid) => {
+        playerList.push({ sessionId: sid, x: player.x, y: player.y, direction: player.direction })
+      })
+      if (playerList.length > 0) client.send('PLAYER_LIST', playerList)
 
       const userData = client.userData as { userId?: string; heroIds?: string[] }
       let heroIds = userData?.heroIds ?? []
@@ -179,6 +189,7 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     if (this.state.players.has(client.sessionId)) {
       this.state.players.delete(client.sessionId)
     }
+    this.broadcast('PLAYER_LEFT', { sessionId: client.sessionId })
   }
 
   private async handleMove(client: Client, message: MoveMessage): Promise<void> {
@@ -196,6 +207,7 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     current.direction = getMovementDirection(currentPos, message.destination)
     current.x = message.destination.x
     current.y = message.destination.y
+    this.broadcast('PLAYER_MOVED', { sessionId: client.sessionId, x: current.x, y: current.y, direction: current.direction })
 
     if (!this._combat) {
       // Auto-trigger dialog when player lands on NPC's front cell or adjacent to a door

@@ -1,6 +1,7 @@
 import { createSignal, createEffect, on, onCleanup } from 'solid-js'
 import { joinRoom } from './useGameServer'
 import type { Room } from 'colyseus.js'
+import { THE_INN } from 'shared-types'
 import type { Position, SceneData, EncounterEvent, CombatState, Action, ActionResult } from 'shared-types'
 import type { CharacterData } from 'simplequest-hud'
 import { supabase } from '../lib/supabase'
@@ -78,7 +79,9 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
         setMySessionId(r.sessionId)
         setConnected(true)
 
+        // Schema onAdd callbacks kept for diagnostics — fires only if binary schema sync works
         r.state.players.onAdd((player: PlayerPosition, sessionId: string) => {
+          console.log('[useExploreRoom] schema onAdd player', sessionId)
           setPlayers((prev) => ({ ...prev, [sessionId]: { x: player.x, y: player.y, characterId: player.characterId, direction: player.direction } }))
           player.onChange(() => {
             setPlayers((prev) => ({ ...prev, [sessionId]: { x: player.x, y: player.y, characterId: player.characterId, direction: player.direction } }))
@@ -88,25 +91,62 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
           setPlayers((prev) => { const next = { ...prev }; delete next[sessionId]; return next })
         })
         r.state.npcs.onAdd((npc: NpcEntity) => {
+          console.log('[useExploreRoom] schema onAdd npc', npc.id)
           setNpcs((prev) => [...prev, { id: npc.id, name: npc.name, role: npc.role, x: npc.x, y: npc.y, direction: npc.direction }])
         })
         r.state.doors.onAdd((door: DoorEntity) => {
+          console.log('[useExploreRoom] schema onAdd door', door.id)
           setDoors((prev) => [...prev, { id: door.id, biomeId: door.biomeId, label: door.label, x: door.x, y: door.y }])
         })
         r.state.enemies.onAdd((enemy: EnemyEntity, id: string) => {
+          console.log('[useExploreRoom] schema onAdd enemy', id)
           setEnemies((prev) => ({ ...prev, [id]: { id: enemy.id, name: enemy.name, x: enemy.x, y: enemy.y } }))
         })
         r.state.enemies.onRemove((_: unknown, id: string) => {
           setEnemies((prev) => { const next = { ...prev }; delete next[id]; return next })
         })
+
         r.onMessage('INTERACTION_START', (data: InteractionEvent) => {
           setInteraction(data)
         })
         r.onMessage('HERO_STATE', (data: CharacterData) => {
           setHeroState(data)
+          // Add self player at spawn if schema onAdd never fired
+          setPlayers((prev) => {
+            if (prev[r.sessionId]) return prev
+            return { ...prev, [r.sessionId]: { x: THE_INN.spawnX, y: THE_INN.spawnY, characterId: r.sessionId, direction: 's' } }
+          })
         })
         r.onMessage('SCENE_STATE', (data: SceneData) => {
           setSceneData(data)
+          // Populate static entities directly from scene JSON (bypasses schema binary sync)
+          const sceneNpcs = (data.tokens ?? [])
+            .filter((t) => t.type === 'npc')
+            .map((t) => ({ id: t.id, name: t.name ?? '', role: t.role ?? '', x: t.col, y: t.row, direction: t.direction ?? 's' }))
+          const sceneDoors = (data.tokens ?? [])
+            .filter((t) => t.type === 'door')
+            .map((t) => ({ id: t.id, biomeId: t.biomeId ?? '', label: t.label ?? '', x: t.col, y: t.row }))
+          if (sceneNpcs.length > 0) setNpcs(sceneNpcs)
+          if (sceneDoors.length > 0) setDoors(sceneDoors)
+        })
+        // JSON position updates — used when binary schema sync is unavailable
+        r.onMessage('PLAYER_LIST', (data: Array<{ sessionId: string; x: number; y: number; direction: string }>) => {
+          setPlayers((prev) => {
+            const updates: Record<string, PlayerState> = {}
+            for (const p of data) {
+              updates[p.sessionId] = { x: p.x, y: p.y, characterId: p.sessionId, direction: p.direction }
+            }
+            return { ...updates, ...prev }
+          })
+        })
+        r.onMessage('PLAYER_MOVED', (data: { sessionId: string; x: number; y: number; direction: string }) => {
+          setPlayers((prev) => ({
+            ...prev,
+            [data.sessionId]: { x: data.x, y: data.y, characterId: prev[data.sessionId]?.characterId ?? data.sessionId, direction: data.direction },
+          }))
+        })
+        r.onMessage('PLAYER_LEFT', (data: { sessionId: string }) => {
+          setPlayers((prev) => { const next = { ...prev }; delete next[data.sessionId]; return next })
         })
         r.onMessage('ENCOUNTER', (data: EncounterEvent) => {
           setEncounter(data)
