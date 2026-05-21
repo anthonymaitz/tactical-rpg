@@ -32,7 +32,7 @@ function toHeroRecord(row: Record<string, unknown>): HeroRecord {
     gear: row.gear as GearSlots,
     starRating: (row.star_rating as number) ?? 0,
     secondaryClass: (row.secondary_class as string | null) ?? null,
-    secondaryAbility: (row.secondary_ability as import('shared-types').AbilityDefinition | null) ?? null,
+    secondaryAbility: (row.secondary_ability as AbilityDefinition | null) ?? null,
     classXp: (row.class_xp as Record<string, number>) ?? {},
     recoveryEndsAt: row.recovery_ends_at as string | null,
     createdAt: row.created_at as string,
@@ -165,8 +165,18 @@ export const heroService = {
   },
 
   async setSecondaryClass(heroId: string, className: string): Promise<HeroRecord> {
-    const abilities = await getSqClassAbilities(className)
-    const firstAbility = abilities[0] ?? null
+    const sqAbilities = await getSqClassAbilities(className)
+    const mapped: AbilityDefinition[] = sqAbilities.map((a) => ({
+      id: a.id,
+      name: a.title,
+      energyCost: a.energyCost ?? 1,
+      diceNotation: (a.diceNotation ?? { kind: 'actor' }) as AbilityDefinition['diceNotation'],
+      targetType: (a.targetType ?? 'enemy') as AbilityDefinition['targetType'],
+      effect: (a.effect ?? 'damage') as AbilityDefinition['effect'],
+      context: a.context as AbilityDefinition['context'],
+      statusEffect: a.statusEffects ?? undefined,
+    }))
+    const firstAbility = mapped[0] ?? null
     const { data, error } = await supabase
       .from('heroes')
       .update({ secondary_class: className, secondary_ability: firstAbility })
@@ -178,11 +188,12 @@ export const heroService = {
   },
 
   async awardClassXp(heroId: string, abilityId: string, amount: number): Promise<void> {
-    const { data: existing } = await supabase
+    const { data: existing, error: selectError } = await supabase
       .from('heroes')
       .select('class_xp')
       .eq('id', heroId)
       .single()
+    if (selectError) return  // fire-and-forget: skip silently on error, don't corrupt data
     const current = (existing?.class_xp as Record<string, number>) ?? {}
     const updated = { ...current, [abilityId]: (current[abilityId] ?? 0) + amount }
     await supabase
