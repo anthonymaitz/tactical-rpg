@@ -1,6 +1,7 @@
 // server/src/db/hero-service.ts
 import { supabase } from './supabase'
 import { applyLevelUp, getRecoveryEndsAt } from './hero-logic'
+import { getSqClassAbilities } from './sq-content'
 import type { HeroRecord, GearSlots, AbilityDefinition } from 'shared-types'
 
 type NewHeroData = {
@@ -30,6 +31,9 @@ function toHeroRecord(row: Record<string, unknown>): HeroRecord {
     abilities: row.abilities as HeroRecord['abilities'],
     gear: row.gear as GearSlots,
     starRating: (row.star_rating as number) ?? 0,
+    secondaryClass: (row.secondary_class as string | null) ?? null,
+    secondaryAbility: (row.secondary_ability as import('shared-types').AbilityDefinition | null) ?? null,
+    classXp: (row.class_xp as Record<string, number>) ?? {},
     recoveryEndsAt: row.recovery_ends_at as string | null,
     createdAt: row.created_at as string,
   }
@@ -157,6 +161,33 @@ export const heroService = {
     await supabase
       .from('heroes')
       .update({ current_hp: null })
+      .eq('id', heroId)
+  },
+
+  async setSecondaryClass(heroId: string, className: string): Promise<HeroRecord> {
+    const abilities = await getSqClassAbilities(className)
+    const firstAbility = abilities[0] ?? null
+    const { data, error } = await supabase
+      .from('heroes')
+      .update({ secondary_class: className, secondary_ability: firstAbility })
+      .eq('id', heroId)
+      .select()
+      .single()
+    if (error) throw error
+    return toHeroRecord(data)
+  },
+
+  async awardClassXp(heroId: string, abilityId: string, amount: number): Promise<void> {
+    const { data: existing } = await supabase
+      .from('heroes')
+      .select('class_xp')
+      .eq('id', heroId)
+      .single()
+    const current = (existing?.class_xp as Record<string, number>) ?? {}
+    const updated = { ...current, [abilityId]: (current[abilityId] ?? 0) + amount }
+    await supabase
+      .from('heroes')
+      .update({ class_xp: updated })
       .eq('id', heroId)
   },
 }

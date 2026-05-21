@@ -25,6 +25,9 @@ const baseHero: HeroRecord = {
   abilities: [],
   gear: { weapon: null, offhand: null, armor: null, trinket: null },
   starRating: 0,
+  secondaryClass: null,
+  secondaryAbility: null,
+  classXp: {},
   recoveryEndsAt: null,
   createdAt: new Date().toISOString(),
 }
