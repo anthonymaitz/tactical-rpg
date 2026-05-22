@@ -5,6 +5,8 @@ import {
   recoveryDurationMs,
   getRecoveryEndsAt,
   isRecovering,
+  classXpThreshold,
+  availableAbilityTiers,
 } from '../hero-logic'
 import type { HeroRecord } from 'shared-types'
 
@@ -88,5 +90,32 @@ describe('isRecovering', () => {
   it('returns false when recovery has ended', () => {
     const past = new Date(Date.now() - 1000).toISOString()
     expect(isRecovering({ ...baseHero, recoveryEndsAt: past })).toBe(false)
+  })
+})
+
+describe('classXpThreshold', () => {
+  it('tier 0 requires 100 xp', () => {
+    expect(classXpThreshold(0)).toBe(100)
+  })
+  it('tier 1 requires 200 xp', () => {
+    expect(classXpThreshold(1)).toBe(200)
+  })
+  it('tier 4 requires 500 xp', () => {
+    expect(classXpThreshold(4)).toBe(500)
+  })
+})
+
+describe('availableAbilityTiers', () => {
+  it('returns 1 with 0 class xp', () => {
+    expect(availableAbilityTiers(0)).toBe(1)
+  })
+  it('returns 2 after 100 xp', () => {
+    expect(availableAbilityTiers(100)).toBe(2)
+  })
+  it('returns 3 after 300 xp (100 + 200)', () => {
+    expect(availableAbilityTiers(300)).toBe(3)
+  })
+  it('caps at 5 tiers', () => {
+    expect(availableAbilityTiers(999999)).toBe(5)
   })
 })
