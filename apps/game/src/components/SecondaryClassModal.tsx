@@ -1,4 +1,4 @@
-import { createSignal, createResource, For, Show } from 'solid-js'
+import { createSignal, createEffect, createResource, on, For, Show, onCleanup } from 'solid-js'
 import type { Accessor } from 'solid-js'
 
 type ClassOption = {
@@ -25,6 +25,12 @@ export function SecondaryClassModal(props: Props) {
   const [selected, setSelected] = createSignal<string | null>(null)
   const [sendError, setSendError] = createSignal<string | null>(null)
   const [isSending, setIsSending] = createSignal(false)
+
+  createEffect(on(isSending, (sending) => {
+    if (!sending) return
+    const timer = setTimeout(() => setIsSending(false), 5000)
+    onCleanup(() => clearTimeout(timer))
+  }))
 
   const currentClass = () => props.heroMeta().secondaryClass
   const effectiveSelected = () => selected() ?? currentClass()
