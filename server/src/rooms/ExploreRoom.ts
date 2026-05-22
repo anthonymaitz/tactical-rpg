@@ -38,7 +38,12 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     if (error) {
       console.warn(`[ExploreRoom] Failed to fetch scene '${SCENE_SLUG}':`, error.message)
     } else if (data?.scene_data && ((data.scene_data as SceneData).tokens?.length ?? 0) > 0) {
-      this._sceneData = data.scene_data as SceneData
+      const stored = data.scene_data as SceneData
+      // Always use code-defined NPC and door tokens from THE_INN — stored scene may predate new NPCs
+      const canonical = generateSceneFromInn(THE_INN)
+      const canonicalIds = new Set(canonical.tokens?.map((t) => t.id) ?? [])
+      const extraTokens = (stored.tokens ?? []).filter((t) => !canonicalIds.has(t.id))
+      this._sceneData = { ...stored, tokens: [...(canonical.tokens ?? []), ...extraTokens] }
     }
 
     for (const token of this._sceneData.tokens ?? []) {
