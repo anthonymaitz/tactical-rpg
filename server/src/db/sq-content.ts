@@ -73,6 +73,7 @@ export async function getSqClassAbilities(classId: string): Promise<SqAbility[]>
     .select('*')
     .eq('source', classId)
     .eq('context', 'inCombat')
+    .order('id', { ascending: true })
   if (error) throw error
   return (data ?? []).map((a) => ({
     id: a.id,
