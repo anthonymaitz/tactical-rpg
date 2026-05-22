@@ -283,7 +283,10 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       position: { x: current.x, y: current.y },
       statusEffects: [],
       isNPC: false,
-      abilities: hero.abilities,
+      abilities: [
+        ...hero.abilities,
+        ...(hero.secondaryAbility ? [hero.secondaryAbility] : []),
+      ],
       damageBonus: weaponDamageBonus(hero.gear?.weapon),
     }
 
@@ -355,7 +358,10 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       position: { x: current.x, y: current.y },
       statusEffects: [],
       isNPC: false,
-      abilities: hero.abilities,
+      abilities: [
+        ...hero.abilities,
+        ...(hero.secondaryAbility ? [hero.secondaryAbility] : []),
+      ],
       damageBonus: weaponDamageBonus(hero.gear?.weapon),
     }
 
