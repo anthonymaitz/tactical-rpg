@@ -32,6 +32,9 @@ const NPC_PANELS: Record<string, Panel[]> = {
   sage_unlocked: [
     { speaker: 'Sage', text: 'Your spirit is ready. Choose a second path — one ability from another class will join your arsenal.' },
   ],
+  sage_rechosen: [
+    { speaker: 'Sage', text: 'Your path can be reforged. Choose again to swap your borrowed ability.' },
+  ],
 }
 
 const BIOME_NAMES: Record<string, string> = {
@@ -323,7 +326,10 @@ export function ExploreScreen() {
     if (!ev) return null
     if (ev.type === 'npc') {
       if (ev.role === 'sage') {
-        return state.heroMeta().level >= 5 ? NPC_PANELS['sage_unlocked'] : NPC_PANELS['sage_locked']
+        const meta = state.heroMeta()
+        if (meta.level < 5) return NPC_PANELS['sage_locked']
+        if (meta.secondaryClass) return NPC_PANELS['sage_rechosen']
+        return NPC_PANELS['sage_unlocked']
       }
       return NPC_PANELS[ev.role] ?? null
     }
