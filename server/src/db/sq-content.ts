@@ -88,3 +88,18 @@ export async function getSqClassAbilities(classId: string): Promise<SqAbility[]>
     statusEffects: a.status_effects,
   }))
 }
+
+export async function listSqClasses(): Promise<Array<{ id: string; firstAbility: SqAbility | null }>> {
+  const { data, error } = await supabase
+    .from('sq_classes')
+    .select('id')
+    .order('id', { ascending: true })
+  if (error) throw error
+  const results = await Promise.all(
+    (data ?? []).map(async (cls) => {
+      const abilities = await getSqClassAbilities(cls.id)
+      return { id: cls.id, firstAbility: abilities[0] ?? null }
+    })
+  )
+  return results
+}
