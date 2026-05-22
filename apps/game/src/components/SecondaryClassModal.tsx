@@ -24,14 +24,16 @@ export function SecondaryClassModal(props: Props) {
   const [classes] = createResource(fetchClasses)
   const [selected, setSelected] = createSignal<string | null>(null)
   const [sendError, setSendError] = createSignal<string | null>(null)
+  const [isSending, setIsSending] = createSignal(false)
 
   const currentClass = () => props.heroMeta().secondaryClass
   const effectiveSelected = () => selected() ?? currentClass()
 
   function handleConfirm() {
     const cls = effectiveSelected()
-    if (!cls) return
+    if (!cls || isSending()) return
     setSendError(null)
+    setIsSending(true)
     props.onSend(cls)
   }
 
@@ -124,15 +126,15 @@ export function SecondaryClassModal(props: Props) {
           </button>
           <button
             onClick={handleConfirm}
-            disabled={!effectiveSelected() || effectiveSelected() === currentClass()}
+            disabled={!effectiveSelected() || effectiveSelected() === currentClass() || isSending()}
             style={{
               padding: '6px 18px', 'font-size': '12px', 'font-weight': '600', cursor: 'pointer',
               background: 'rgba(80,160,80,0.2)', color: '#6f6',
               border: '1px solid #3a5a3a', 'border-radius': '5px',
-              opacity: (!effectiveSelected() || effectiveSelected() === currentClass()) ? '0.4' : '1',
+              opacity: (!effectiveSelected() || effectiveSelected() === currentClass() || isSending()) ? '0.4' : '1',
             }}
           >
-            Confirm
+            {isSending() ? 'Sending…' : 'Confirm'}
           </button>
         </div>
       </div>
