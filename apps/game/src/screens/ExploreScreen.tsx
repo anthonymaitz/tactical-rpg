@@ -8,6 +8,7 @@ import { ComicPlayer } from '../components/ComicPlayer'
 import { PartyPicker } from '../components/PartyPicker'
 import { InventoryPanel } from '../components/InventoryPanel'
 import { CombatResultModal } from '../components/CombatResultModal'
+import { SecondaryClassModal } from '../components/SecondaryClassModal'
 import { SimpleQuestHUD } from 'simplequest-hud'
 import { useContent } from '../hooks/useContent'
 import { PlaysetBoard } from 'playsets'
@@ -24,6 +25,12 @@ const NPC_PANELS: Record<string, Panel[]> = {
   ],
   doorkeeper: [
     { speaker: 'Doorkeeper', text: 'Ready to venture out? Choose your party and I\'ll open the way.' },
+  ],
+  sage_locked: [
+    { speaker: 'Sage', text: 'Return when you\'ve proven yourself in battle. Secondary paths open at level 5.' },
+  ],
+  sage_unlocked: [
+    { speaker: 'Sage', text: 'Your spirit is ready. Choose a second path — one ability from another class will join your arsenal.' },
   ],
 }
 
@@ -47,6 +54,7 @@ export function ExploreScreen() {
   const heroRoster = createHeroes(token)
   const [partyPickerBiomeId, setPartyPickerBiomeId] = createSignal<string | null>(null)
   const [sidebarTab, setSidebarTab] = createSignal<'character' | 'inventory'>('character')
+  const [showSecondaryModal, setShowSecondaryModal] = createSignal(false)
 
   const [selectedAbility, setSelectedAbility] = createSignal<AbilityDefinition | null>(null)
   const [usedAbilityTitles, setUsedAbilityTitles] = createSignal<string[]>([])
@@ -313,7 +321,12 @@ export function ExploreScreen() {
   const interactionPanels = (): Panel[] | null => {
     const ev = state.interaction()
     if (!ev) return null
-    if (ev.type === 'npc') return NPC_PANELS[ev.role] ?? null
+    if (ev.type === 'npc') {
+      if (ev.role === 'sage') {
+        return state.heroMeta().level >= 5 ? NPC_PANELS['sage_unlocked'] : NPC_PANELS['sage_locked']
+      }
+      return NPC_PANELS[ev.role] ?? null
+    }
     if (ev.type === 'door') return DOOR_PANELS
     return null
   }
@@ -324,6 +337,9 @@ export function ExploreScreen() {
     if (ev?.type === 'npc' && ev.role === 'doorkeeper' && ev.biomeId) {
       void heroRoster.refresh()
       setPartyPickerBiomeId(ev.biomeId)
+    }
+    if (ev?.type === 'npc' && ev.role === 'sage' && state.heroMeta().level >= 5) {
+      setShowSecondaryModal(true)
     }
     state.dismissInteraction()
   }
@@ -338,6 +354,11 @@ export function ExploreScreen() {
   createEffect(on(() => state.combatState(), (cs) => {
     if (cs) state.dismissEncounter()
   }))
+
+  // Auto-close secondary class modal when hero's secondaryClass is set
+  createEffect(on(() => state.heroMeta().secondaryClass, () => {
+    setShowSecondaryModal(false)
+  }, { defer: true }))
 
   // Forward server-broadcast emote/speech/action events to board (for other clients' tokens)
   createEffect(on(state.emoteEvent, (ev) => {
@@ -492,6 +513,15 @@ export function ExploreScreen() {
                   <ComicPlayer panels={panels()} onComplete={handleInteractionComplete} />
                 </div>
               )}
+            </Show>
+
+            {/* Secondary class modal — shown after sage interaction at level 5+ */}
+            <Show when={showSecondaryModal()}>
+              <SecondaryClassModal
+                heroMeta={state.heroMeta}
+                onSend={(className) => state.setSecondaryClass(className)}
+                onClose={() => setShowSecondaryModal(false)}
+              />
             </Show>
 
             {/* Party picker — shown after doorkeeper comic completes */}
