@@ -48,6 +48,7 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
   const [emoteEvent, setEmoteEvent] = createSignal<{ id: string; emote: string } | null>(null)
   const [speechEvent, setSpeechEvent] = createSignal<{ id: string; speech: string } | null>(null)
   const [actionEvent, setActionEvent] = createSignal<{ id: string; action: string } | null>(null)
+  const [heroMeta, setHeroMeta] = createSignal<{ level: number; secondaryClass: string | null }>({ level: 1, secondaryClass: null })
 
   createEffect(on([token, heroIds] as const, ([t, ids]) => {
     room?.leave()
@@ -68,6 +69,7 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
     setRecoveryEndsAt(null)
     setJoinOffer(false)
     setActionError(null)
+    setHeroMeta({ level: 1, secondaryClass: null })
 
     if (!t) return
 
@@ -109,8 +111,9 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
         r.onMessage('INTERACTION_START', (data: InteractionEvent) => {
           setInteraction(data)
         })
-        r.onMessage('HERO_STATE', (data: CharacterData) => {
+        r.onMessage('HERO_STATE', (data: CharacterData & { level?: number; secondaryClass?: string | null }) => {
           setHeroState(data)
+          setHeroMeta({ level: data.level ?? 1, secondaryClass: data.secondaryClass ?? null })
           // Add self player at spawn if schema onAdd never fired
           setPlayers((prev) => {
             if (prev[r.sessionId]) return prev
@@ -234,5 +237,7 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
     emote(emote: string) { room?.send('EMOTE', { emote }) },
     speech(speech: string) { room?.send('SPEECH', { speech }) },
     action(action: string) { room?.send('TOKEN_ACTION', { action }) },
+    heroMeta,
+    setSecondaryClass(className: string) { room?.send('SET_SECONDARY_CLASS', { className }) },
   }
 }
