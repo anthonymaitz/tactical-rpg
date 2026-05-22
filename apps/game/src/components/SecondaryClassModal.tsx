@@ -10,6 +10,7 @@ interface Props {
   heroMeta: Accessor<{ level: number; secondaryClass: string | null }>
   onSend: (className: string) => void
   onClose: () => void
+  serverError?: Accessor<string | null>
 }
 
 async function fetchClasses(): Promise<ClassOption[]> {
@@ -30,6 +31,13 @@ export function SecondaryClassModal(props: Props) {
     if (!sending) return
     const timer = setTimeout(() => setIsSending(false), 5000)
     onCleanup(() => clearTimeout(timer))
+  }))
+
+  createEffect(on(() => props.serverError?.(), (err) => {
+    if (err) {
+      setSendError(err)
+      setIsSending(false)
+    }
   }))
 
   const currentClass = () => props.heroMeta().secondaryClass

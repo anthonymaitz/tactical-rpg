@@ -49,6 +49,7 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
   const [speechEvent, setSpeechEvent] = createSignal<{ id: string; speech: string } | null>(null)
   const [actionEvent, setActionEvent] = createSignal<{ id: string; action: string } | null>(null)
   const [heroMeta, setHeroMeta] = createSignal<{ level: number; secondaryClass: string | null }>({ level: 1, secondaryClass: null })
+  const [serverError, setServerError] = createSignal<string | null>(null)
 
   createEffect(on([token, heroIds] as const, ([t, ids]) => {
     room?.leave()
@@ -70,6 +71,7 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
     setJoinOffer(false)
     setActionError(null)
     setHeroMeta({ level: 1, secondaryClass: null })
+    setServerError(null)
 
     if (!t) return
 
@@ -189,6 +191,10 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
           setActionError(data.reason ?? 'Cannot move there')
           setTimeout(() => setActionError(null), 3000)
         })
+        r.onMessage('ERROR', (data: { code?: string; message?: string }) => {
+          setServerError(data.message ?? 'An error occurred')
+          setTimeout(() => setServerError(null), 5000)
+        })
 
         r.send('READY')
       })
@@ -238,6 +244,7 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
     speech(speech: string) { room?.send('SPEECH', { speech }) },
     action(action: string) { room?.send('TOKEN_ACTION', { action }) },
     heroMeta,
+    serverError,
     setSecondaryClass(className: string) { room?.send('SET_SECONDARY_CLASS', { className }) },
   }
 }

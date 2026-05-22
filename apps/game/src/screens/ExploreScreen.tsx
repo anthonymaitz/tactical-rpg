@@ -527,6 +527,7 @@ export function ExploreScreen() {
                 heroMeta={state.heroMeta}
                 onSend={(className) => state.setSecondaryClass(className)}
                 onClose={() => setShowSecondaryModal(false)}
+                serverError={state.serverError}
               />
             </Show>
 
