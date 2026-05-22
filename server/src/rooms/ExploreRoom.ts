@@ -5,6 +5,7 @@ import { EnemyManager } from './EnemyManager'
 import { InPlaceCombatEngine } from './InPlaceCombatEngine'
 import { isValidMove, isWalkable, isAdjacent, getFrontCell, getMovementDirection } from './logic/explore-logic'
 import { heroService } from '../db/hero-service'
+import { CLASS_XP_PER_COMBAT_USE } from '../db/hero-logic'
 import { supabase } from '../db/supabase'
 import { THE_INN, generateSceneFromInn } from 'shared-types'
 import type { Position, SceneData, ActorState, EncounterEvent } from 'shared-types'
@@ -420,6 +421,11 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     } catch (e) {
       client.send('ACTION_REJECTED', { reason: e instanceof Error ? e.message : 'invalid action' })
       return
+    }
+
+    // Award classXp for ability use (fire-and-forget)
+    if (action.type === 'ability') {
+      heroService.awardClassXp(heroId, action.ability.id, CLASS_XP_PER_COMBAT_USE).catch(() => {})
     }
 
     if (this._combat.isOver()) {
