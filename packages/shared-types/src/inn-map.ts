@@ -1,6 +1,6 @@
 export type FacingDir = 'n' | 'e' | 's' | 'w'
 
-export type NpcRole = 'innkeeper' | 'blacksmith' | 'doorkeeper'
+export type NpcRole = 'innkeeper' | 'blacksmith' | 'doorkeeper' | 'sage'
 
 export type InnNpc = {
   id: string
@@ -76,6 +76,7 @@ export const THE_INN: InnMap = {
     { id: 'innkeeper',         name: 'Innkeeper',        role: 'innkeeper',  x: 10, y: 2,  direction: 's' },
     { id: 'blacksmith',        name: 'Blacksmith',        role: 'blacksmith', x: 4,  y: 7,  direction: 'e' },
     { id: 'doorkeeper-forest', name: 'Forest Doorkeeper', role: 'doorkeeper', x: 16, y: 7,  direction: 'w' },
+    { id: 'sage',              name: 'Sage',              role: 'sage',       x: 7,  y: 2,  direction: 's' },
   ],
   doors: [
     { id: 'door-forest', biomeId: 'verdant-forest', label: 'Verdant Forest', x: 16, y: 12 },

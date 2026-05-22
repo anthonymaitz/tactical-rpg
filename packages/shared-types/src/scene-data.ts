@@ -25,7 +25,7 @@ export interface SceneToken {
   type: 'npc' | 'door' | 'enemy' | 'spawn-point'
   col: number
   row: number
-  role?: 'innkeeper' | 'blacksmith' | 'doorkeeper'
+  role?: 'innkeeper' | 'blacksmith' | 'doorkeeper' | 'sage'
   name?: string
   biomeId?: string
   label?: string
