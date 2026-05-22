@@ -187,6 +187,28 @@ export const heroService = {
     return toHeroRecord(data)
   },
 
+  async setLevel(heroId: string, level: number): Promise<HeroRecord> {
+    const { data, error } = await supabase
+      .from('heroes')
+      .update({ level: Math.max(1, level), xp: 0 })
+      .eq('id', heroId)
+      .select()
+      .single()
+    if (error) throw error
+    return toHeroRecord(data)
+  },
+
+  async clearSecondaryClass(heroId: string): Promise<HeroRecord> {
+    const { data, error } = await supabase
+      .from('heroes')
+      .update({ secondary_class: null, secondary_ability: null, class_xp: {} })
+      .eq('id', heroId)
+      .select()
+      .single()
+    if (error) throw error
+    return toHeroRecord(data)
+  },
+
   async awardClassXp(heroId: string, abilityId: string, amount: number): Promise<void> {
     const { data: existing, error: selectError } = await supabase
       .from('heroes')

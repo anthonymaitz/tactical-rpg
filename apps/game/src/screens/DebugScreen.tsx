@@ -23,6 +23,7 @@ export function DebugScreen() {
   const [inventory, setInventory] = createSignal<PlayerInventory | null>(null)
   const [status, setStatus] = createSignal<string | null>(null)
   const [amounts, setAmounts] = createSignal({ gold: 100, healthPotions: 5, starFragments: 10, decorShards: 10 })
+  const [levelInputs, setLevelInputs] = createSignal<Record<string, number>>({})
 
   createEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -68,6 +69,32 @@ export function DebugScreen() {
       const updated = await apiFetch<HeroRecord>('/debug/unequip-weapon', t, { heroId })
       setHeroes((prev) => prev.map((h) => (h.id === heroId ? updated : h)))
       setStatus(`Weapon removed from ${updated.name}.`)
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : 'Error')
+    }
+    setTimeout(() => setStatus(null), 3000)
+  }
+
+  async function setLevel(heroId: string, level: number) {
+    const t = token()
+    if (!t) return
+    try {
+      const updated = await apiFetch<HeroRecord>('/debug/set-level', t, { heroId, level })
+      setHeroes((prev) => prev.map((h) => (h.id === heroId ? updated : h)))
+      setStatus(`${updated.name} set to level ${updated.level}.`)
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : 'Error')
+    }
+    setTimeout(() => setStatus(null), 3000)
+  }
+
+  async function clearSecondaryClass(heroId: string) {
+    const t = token()
+    if (!t) return
+    try {
+      const updated = await apiFetch<HeroRecord>('/debug/clear-secondary-class', t, { heroId })
+      setHeroes((prev) => prev.map((h) => (h.id === heroId ? updated : h)))
+      setStatus(`Secondary class cleared from ${updated.name}.`)
     } catch (e) {
       setStatus(e instanceof Error ? e.message : 'Error')
     }
@@ -143,6 +170,56 @@ export function DebugScreen() {
                     </Show>
                     <Show when={hero.gear?.weapon === 'debug-sword'}>
                       <DebugButton label="Unequip" onClick={() => void unequipWeapon(hero.id)} small danger />
+                    </Show>
+                  </div>
+                </div>
+              )}
+            </For>
+          </Section>
+
+          {/* Hero stats */}
+          <Section label="Hero Stats">
+            <Show when={heroes().length === 0}>
+              <span style={{ color: '#555', 'font-size': '12px' }}>No heroes found.</span>
+            </Show>
+            <For each={heroes()}>
+              {(hero) => (
+                <div style={{
+                  padding: '8px 12px', 'margin-bottom': '6px',
+                  background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
+                  'border-radius': '5px',
+                }}>
+                  <div style={{ display: 'flex', 'align-items': 'center', 'justify-content': 'space-between', 'margin-bottom': '8px' }}>
+                    <div>
+                      <span style={{ color: '#ddd', 'font-size': '13px' }}>{hero.name}</span>
+                      <span style={{ color: '#888', 'font-size': '11px', 'margin-left': '10px' }}>Lv {hero.level} · {hero.xp} xp</span>
+                      <Show when={hero.secondaryClass}>
+                        <span style={{ color: '#c080ff', 'font-size': '11px', 'margin-left': '10px' }}>2nd: {hero.secondaryClass}</span>
+                      </Show>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', 'align-items': 'flex-end', gap: '8px' }}>
+                    <label style={{ display: 'flex', 'flex-direction': 'column', gap: '3px' }}>
+                      <span style={{ 'font-size': '10px', color: '#555', 'text-transform': 'uppercase', 'letter-spacing': '0.08em' }}>Set Level</span>
+                      <input
+                        type="number"
+                        value={levelInputs()[hero.id] ?? hero.level}
+                        min={1}
+                        onInput={(e) => {
+                          const v = parseInt((e.target as HTMLInputElement).value) || 1
+                          setLevelInputs((p) => ({ ...p, [hero.id]: v }))
+                        }}
+                        style={{
+                          width: '64px',
+                          background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                          'border-radius': '4px', color: '#ccc', padding: '4px 8px', 'font-size': '13px',
+                          'font-family': 'monospace',
+                        }}
+                      />
+                    </label>
+                    <DebugButton label="Apply" onClick={() => void setLevel(hero.id, levelInputs()[hero.id] ?? hero.level)} small />
+                    <Show when={hero.secondaryClass}>
+                      <DebugButton label="Clear 2nd Class" onClick={() => void clearSecondaryClass(hero.id)} small danger />
                     </Show>
                   </div>
                 </div>

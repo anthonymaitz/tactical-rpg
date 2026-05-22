@@ -57,3 +57,34 @@ debugRoutes.post('/unequip-weapon', async (c) => {
   const updated = await heroService.equipGear(body.heroId, 'weapon', null)
   return c.json(updated)
 })
+
+// POST /debug/set-level — set hero level (also resets XP to 0)
+// Body: { heroId: string, level: number }
+debugRoutes.post('/set-level', async (c) => {
+  const userId = c.get('userId') as string
+  const body = await c.req.json<{ heroId: string; level: number }>()
+  if (!body.heroId) return c.json({ error: 'heroId required' }, 400)
+  if (typeof body.level !== 'number') return c.json({ error: 'level required' }, 400)
+
+  const hero = await heroService.getHero(body.heroId)
+  if (!hero) return c.json({ error: 'Hero not found' }, 404)
+  if (hero.userId !== userId) return c.json({ error: 'Not your hero' }, 403)
+
+  const updated = await heroService.setLevel(body.heroId, body.level)
+  return c.json(updated)
+})
+
+// POST /debug/clear-secondary-class — clear secondary class, ability, and class XP
+// Body: { heroId: string }
+debugRoutes.post('/clear-secondary-class', async (c) => {
+  const userId = c.get('userId') as string
+  const body = await c.req.json<{ heroId: string }>()
+  if (!body.heroId) return c.json({ error: 'heroId required' }, 400)
+
+  const hero = await heroService.getHero(body.heroId)
+  if (!hero) return c.json({ error: 'Hero not found' }, 404)
+  if (hero.userId !== userId) return c.json({ error: 'Not your hero' }, 403)
+
+  const updated = await heroService.clearSecondaryClass(body.heroId)
+  return c.json(updated)
+})
