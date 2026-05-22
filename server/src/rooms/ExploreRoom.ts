@@ -119,6 +119,8 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
         energy: Array(10).fill(true) as boolean[],
         starRating: hero.starRating ?? 0,
         gear: hero.gear ? { weapon: hero.gear.weapon ?? null, weaponBonus: weaponDamageBonus(hero.gear.weapon) } : undefined,
+        level: hero.level,
+        secondaryClass: hero.secondaryClass,
       })
     })
 
@@ -149,6 +151,8 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
           energy: Array(10).fill(true) as boolean[],
           starRating: updated.starRating ?? 0,
           gear: updated.gear ? { weapon: updated.gear.weapon ?? null, weaponBonus: weaponDamageBonus(updated.gear?.weapon) } : undefined,
+          level: updated.level,
+          secondaryClass: updated.secondaryClass,
         })
       } catch (err) {
         console.error('[ExploreRoom] setSecondaryClass failed:', err)
@@ -204,6 +208,8 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
         energy: Array(10).fill(true) as boolean[],
         starRating: hero.starRating ?? 0,
         gear: hero.gear ? { weapon: hero.gear.weapon ?? null, weaponBonus: weaponDamageBonus(hero.gear.weapon) } : undefined,
+        level: hero.level,
+        secondaryClass: hero.secondaryClass,
       })
     })
   }
