@@ -121,6 +121,35 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       })
     })
 
+    this.onMessage<{ className: string }>('SET_SECONDARY_CLASS', async (client, message) => {
+      const userData = client.userData as { heroIds?: string[] }
+      const heroId = (userData?.heroIds ?? [])[0]
+      if (!heroId) return
+
+      const hero = await heroService.getHero(heroId)
+      if (!hero) return
+      if (hero.level < 5) {
+        client.send('ERROR', { code: 'SECONDARY_CLASS_LOCKED', message: 'Secondary class unlocks at level 5' })
+        return
+      }
+
+      const updated = await heroService.setSecondaryClass(heroId, message.className)
+      const maxHp = updated.maxHp > 0 ? updated.maxHp : 10
+      client.send('HERO_STATE', {
+        name: updated.name,
+        class: updated.characterClass,
+        personality: updated.personality,
+        profession: updated.profession ?? '',
+        die: updated.die,
+        hp: maxHp,
+        maxHp,
+        combat: 'inGeneral',
+        energy: Array(10).fill(true) as boolean[],
+        starRating: updated.starRating ?? 0,
+        gear: updated.gear ? { weapon: updated.gear.weapon ?? null, weaponBonus: weaponDamageBonus(updated.gear?.weapon) } : undefined,
+      })
+    })
+
     this.onMessage<{ direction: string }>('FACE', (client, message) => {
       const player = this.state.players.get(client.sessionId)
       if (player) {
