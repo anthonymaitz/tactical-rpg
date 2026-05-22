@@ -133,21 +133,26 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
         return
       }
 
-      const updated = await heroService.setSecondaryClass(heroId, message.className)
-      const maxHp = updated.maxHp > 0 ? updated.maxHp : 10
-      client.send('HERO_STATE', {
-        name: updated.name,
-        class: updated.characterClass,
-        personality: updated.personality,
-        profession: updated.profession ?? '',
-        die: updated.die,
-        hp: maxHp,
-        maxHp,
-        combat: 'inGeneral',
-        energy: Array(10).fill(true) as boolean[],
-        starRating: updated.starRating ?? 0,
-        gear: updated.gear ? { weapon: updated.gear.weapon ?? null, weaponBonus: weaponDamageBonus(updated.gear?.weapon) } : undefined,
-      })
+      try {
+        const updated = await heroService.setSecondaryClass(heroId, message.className)
+        const maxHp = updated.maxHp > 0 ? updated.maxHp : 10
+        client.send('HERO_STATE', {
+          name: updated.name,
+          class: updated.characterClass,
+          personality: updated.personality,
+          profession: updated.profession ?? '',
+          die: updated.die,
+          hp: maxHp,
+          maxHp,
+          combat: 'inGeneral',
+          energy: Array(10).fill(true) as boolean[],
+          starRating: updated.starRating ?? 0,
+          gear: updated.gear ? { weapon: updated.gear.weapon ?? null, weaponBonus: weaponDamageBonus(updated.gear?.weapon) } : undefined,
+        })
+      } catch (err) {
+        console.error('[ExploreRoom] setSecondaryClass failed:', err)
+        client.send('ERROR', { code: 'SET_CLASS_FAILED', message: 'Failed to set secondary class' })
+      }
     })
 
     this.onMessage<{ direction: string }>('FACE', (client, message) => {
