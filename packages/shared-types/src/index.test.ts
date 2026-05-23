@@ -12,11 +12,11 @@ describe('shared-types', () => {
     expectTypeOf<ActorState['abilities']>().toEqualTypeOf<AbilityDefinition[]>()
   })
 
-  it('CombatState has actors map and turn queue', () => {
+  it('CombatState has actors map and phases', () => {
     expectTypeOf<CombatState>().toHaveProperty('actors')
     expectTypeOf<CombatState['actors']>().toEqualTypeOf<Record<string, ActorState>>()
-    expectTypeOf<CombatState>().toHaveProperty('turnQueue')
-    expectTypeOf<CombatState['turnQueue']>().toEqualTypeOf<string[]>()
+    expectTypeOf<CombatState>().toHaveProperty('phases')
+    expectTypeOf<CombatState>().toHaveProperty('isPlayerTurn')
   })
 
   it('ActionResult hpDeltas is a string-keyed number record', () => {

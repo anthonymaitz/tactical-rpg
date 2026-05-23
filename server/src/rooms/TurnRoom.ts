@@ -1,8 +1,8 @@
 import type { Client } from '@colyseus/core'
 import { BaseRoom } from './BaseRoom'
 import { decideNPCAction, resolveAction, applyResult } from 'rules-engine'
-import { rollInitiativeOrder, advanceTurn } from './logic/turn-logic'
-import type { CombatState, ActorState, Action } from 'shared-types'
+import { rollInitiativeOrder } from './logic/turn-logic'
+import type { CombatState, ActorState, Action, CombatPhase } from 'shared-types'
 
 interface TurnRoomOptions {
   actors: ActorState[]
@@ -18,20 +18,28 @@ export class TurnRoom extends BaseRoom<object> {
 
   onCreate(options: TurnRoomOptions): void {
     this.setState({})
-    const turnQueue = rollInitiativeOrder(options.actors)
+    const ordered = rollInitiativeOrder(options.actors)
     const actors: Record<string, ActorState> = {}
     for (const actor of options.actors) {
       actors[actor.id] = actor
     }
+    // Build one phase per actor in initiative order
+    const phases: CombatPhase[] = ordered.map((id) => ({
+      id,
+      isPlayers: !actors[id].isNPC,
+      actorIds: [id],
+      label: actors[id].name,
+    }))
     this.combatState = {
       roomId: options.roomId,
-      turnQueue,
-      currentActorIndex: 0,
+      phases,
+      currentPhaseIndex: 0,
+      isPlayerTurn: phases[0]?.isPlayers ?? true,
       actors,
       round: 1,
       log: [],
       isOver: false,
-      activeEnemyIds: [],
+      activeEnemyIds: options.actors.filter(a => a.isNPC).map(a => a.id),
     }
     this.onMessage<PlayerActionMessage>('PLAYER_ACTION', (client, message) => {
       this.handlePlayerAction(client, message.action)
@@ -47,8 +55,9 @@ export class TurnRoom extends BaseRoom<object> {
   }
 
   protected handlePlayerAction(_client: Client, action: Action): void {
-    const currentActorId = this.combatState.turnQueue[this.combatState.currentActorIndex]
-    const actor = this.combatState.actors[currentActorId]
+    const phase = this.combatState.phases[this.combatState.currentPhaseIndex]
+    const currentActorId = phase?.actorIds[0]
+    const actor = currentActorId ? this.combatState.actors[currentActorId] : undefined
     if (!actor || actor.isNPC) return
 
     const result = resolveAction(currentActorId, action, this.combatState)
@@ -60,19 +69,17 @@ export class TurnRoom extends BaseRoom<object> {
       return
     }
 
-    this.combatState.currentActorIndex = advanceTurn(
-      this.combatState.turnQueue,
-      this.combatState.currentActorIndex,
-    )
+    this.advancePhase()
     this.processNPCTurns()
     this.broadcastState()
   }
 
   protected processNPCTurns(): void {
-    let safetyLimit = this.combatState.turnQueue.length * 2
+    let safetyLimit = this.combatState.phases.length * 2
     while (safetyLimit-- > 0) {
-      const currentActorId = this.combatState.turnQueue[this.combatState.currentActorIndex]
-      const actor = this.combatState.actors[currentActorId]
+      const phase = this.combatState.phases[this.combatState.currentPhaseIndex]
+      const currentActorId = phase?.actorIds[0]
+      const actor = currentActorId ? this.combatState.actors[currentActorId] : undefined
       if (!actor || !actor.isNPC) break
 
       const action = decideNPCAction(currentActorId, this.combatState)
@@ -82,10 +89,19 @@ export class TurnRoom extends BaseRoom<object> {
 
       if (this.combatState.isOver) break
 
-      this.combatState.currentActorIndex = advanceTurn(
-        this.combatState.turnQueue,
-        this.combatState.currentActorIndex,
-      )
+      this.advancePhase()
+    }
+  }
+
+  private advancePhase(): void {
+    const total = this.combatState.phases.length
+    const next = (this.combatState.currentPhaseIndex + 1) % total
+    const newRound = next === 0
+    this.combatState = {
+      ...this.combatState,
+      currentPhaseIndex: next,
+      isPlayerTurn: this.combatState.phases[next]?.isPlayers ?? false,
+      round: newRound ? this.combatState.round + 1 : this.combatState.round,
     }
   }
 }

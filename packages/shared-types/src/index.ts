@@ -49,11 +49,19 @@ export interface ActionResult {
   description: string
 }
 
+export interface CombatPhase {
+  id: string           // 'players' | 'group-0' | 'group-1' etc.
+  isPlayers: boolean
+  actorIds: string[]   // actors that act in this phase
+  label: string        // display name for initiative tracker
+}
+
 export interface CombatState {
   roomId: string
-  /** Actor IDs in initiative order */
-  turnQueue: string[]
-  currentActorIndex: number
+  phases: CombatPhase[]
+  currentPhaseIndex: number
+  /** True when the current phase belongs to the players — any party hero can act */
+  isPlayerTurn: boolean
   actors: Record<string, ActorState>
   round: number
   log: string[]

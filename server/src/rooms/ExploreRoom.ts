@@ -4,6 +4,7 @@ import { BaseRoom } from './BaseRoom'
 import { EnemyManager } from './EnemyManager'
 import { InPlaceCombatEngine } from './InPlaceCombatEngine'
 import { isValidMove, isWalkable, isAdjacent, getFrontCell, getMovementDirection } from './logic/explore-logic'
+import { buildPartyActors, getActivePartyActorId } from './logic/party-combat'
 import { heroService } from '../db/hero-service'
 import { CLASS_XP_PER_COMBAT_USE } from '../db/hero-logic'
 import { supabase } from '../db/supabase'
@@ -312,66 +313,44 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     const current = this.state.players.get(client.sessionId)
     if (!current) return
 
-    const heroes = (await Promise.all(heroIds.map((id) => heroService.getHero(id)))).filter(
-      (h): h is NonNullable<typeof h> => h !== null,
-    )
-    if (heroes.length === 0) return
-
-    // Spread party in a row to the left of the lead hero's position
-    const heroActors: ActorState[] = heroes.map((hero, i) => ({
-      id: hero.id,
-      name: hero.name,
-      personality: hero.personality,
-      characterClass: hero.characterClass,
-      die: hero.die,
-      hp: hero.maxHp,
-      maxHp: hero.maxHp,
-      energy: hero.maxEnergy > 0 ? hero.maxEnergy : 10,
-      maxEnergy: hero.maxEnergy > 0 ? hero.maxEnergy : 10,
-      speed: hero.speed,
-      position: { x: current.x - i, y: current.y },
-      statusEffects: [],
-      isNPC: false,
-      abilities: [...hero.abilities, ...hero.secondaryAbilities],
-      damageBonus: weaponDamageBonus(hero.gear?.weapon),
-    }))
+    const heroActors = await buildPartyActors(heroIds, { x: current.x, y: current.y })
+    if (heroActors.length === 0) return
 
     const enemyData = this.enemyManager.getEnemy(encounter.enemyId)
     if (!enemyData) return
 
-    const enemyActor: ActorState = {
+    const enemyGroup = [{
       id: encounter.enemyId,
       name: encounter.enemyName,
-      personality: 'wild',
+      personality: 'wild' as const,
       characterClass: 'Enemy',
-      die: 'd6',
+      die: 'd6' as const,
       hp: enemyData.hp,
       maxHp: enemyData.maxHp,
       energy: 10,
       maxEnergy: 10,
       speed: 3,
       position: { x: encounter.x, y: encounter.y },
-      statusEffects: [],
+      statusEffects: [] as string[],
       isNPC: true,
       abilities: [ENEMY_SLASH],
-    }
+    }]
 
     client.send('ENCOUNTER', encounter)
 
-    this._combat = new InPlaceCombatEngine([...heroActors, enemyActor], THE_INN.walls, enemyData.level)
+    this._combat = new InPlaceCombatEngine(heroActors, [enemyGroup], THE_INN.walls, enemyData.level)
     this._combatParticipants.add(client.sessionId)
-    this._combatHeroActorIds.set(client.sessionId, heroes.map((h) => h.id))
+    this._combatHeroActorIds.set(client.sessionId, heroActors.map((a) => a.id))
 
-    this.broadcast('COMBAT_START', this._combat.getCombatState())
+    const initialState = this._combat.getCombatState()
+    this.broadcast('COMBAT_START', initialState)
 
-    // Auto-process NPC turns if enemies go first
-    const firstId = this._combat.getCombatState().turnQueue[0]
-    if (this._combat.getCombatState().actors[firstId]?.isNPC) {
-      this._combat.processNPCTurns()
-      // Restore energy for the player who is now up after NPC turns
-      const cs = this._combat.getCombatState()
-      const playerId = cs.turnQueue[cs.currentActorIndex]
-      if (playerId) this._combat.startTurn(playerId)
+    if (!initialState.isPlayerTurn) {
+      const npcResults = this._combat.endPlayerPhase()
+      for (const r of npcResults) {
+        if (Object.keys(r.hpDeltas).length > 0) this.broadcast('ACTION_RESULT', r)
+      }
+      if (this._combat.isOver()) { this.endCombat(); return }
       this.broadcast('COMBAT_STATE', this._combat.getCombatState())
     }
   }
@@ -387,72 +366,37 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     const current = this.state.players.get(client.sessionId)
     if (!current) return
 
-    const heroes = (await Promise.all(heroIds.map((id) => heroService.getHero(id)))).filter(
-      (h): h is NonNullable<typeof h> => h !== null,
-    )
-    if (heroes.length === 0) return
+    const joinActors = await buildPartyActors(heroIds, { x: current.x, y: current.y })
+    if (joinActors.length === 0) return
 
-    heroes.forEach((hero, i) => {
-      this._combat!.addActor({
-        id: hero.id,
-        name: hero.name,
-        personality: hero.personality,
-        characterClass: hero.characterClass,
-        die: hero.die,
-        hp: hero.maxHp,
-        maxHp: hero.maxHp,
-        energy: hero.maxEnergy > 0 ? hero.maxEnergy : 10,
-        maxEnergy: hero.maxEnergy > 0 ? hero.maxEnergy : 10,
-        speed: hero.speed,
-        position: { x: current.x - i, y: current.y },
-        statusEffects: [],
-        isNPC: false,
-        abilities: [...hero.abilities, ...hero.secondaryAbilities],
-        damageBonus: weaponDamageBonus(hero.gear?.weapon),
-      })
-    })
+    for (const actor of joinActors) this._combat!.addActor(actor)
 
     this._combatParticipants.add(client.sessionId)
-    this._combatHeroActorIds.set(client.sessionId, heroes.map((h) => h.id))
+    this._combatHeroActorIds.set(client.sessionId, joinActors.map((a) => a.id))
     this.broadcast('COMBAT_STATE', this._combat.getCombatState())
   }
 
   private handleCombatAction(client: Client, action: import('shared-types').Action): void {
     if (!this._combat) return
     const sessionHeroIds = this._combatHeroActorIds.get(client.sessionId) ?? []
-    if (sessionHeroIds.length === 0) return
-
     const cs = this._combat.getCombatState()
-    const currentActorId = cs.turnQueue[cs.currentActorIndex]
-    if (!sessionHeroIds.includes(currentActorId)) return
+    const actorId = getActivePartyActorId(sessionHeroIds, cs, action.actorId)
+    if (!actorId) return
 
     let actionResult: import('shared-types').ActionResult
     try {
-      actionResult = this._combat.handlePlayerAction(currentActorId, action)
+      actionResult = this._combat.handlePlayerAction(actorId, action)
     } catch (e) {
       client.send('ACTION_REJECTED', { reason: e instanceof Error ? e.message : 'invalid action' })
       return
     }
 
-    // Award classXp for ability use (fire-and-forget)
     if (action.type === 'ability') {
-      heroService.awardClassXp(currentActorId, action.ability.id, CLASS_XP_PER_COMBAT_USE).catch(() => {})
+      heroService.awardClassXp(actorId, action.ability.id, CLASS_XP_PER_COMBAT_USE).catch(() => {})
     }
 
-    if (this._combat.isOver()) {
-      this.endCombat()
-      return
-    }
-
+    if (this._combat.isOver()) { this.endCombat(); return }
     this.broadcast('ACTION_RESULT', actionResult)
-
-    // Auto-advance if energy depleted
-    const updatedActor = this._combat.getCombatState().actors[currentActorId]
-    if (updatedActor && updatedActor.energy <= 0) {
-      this.advanceCombatTurn()
-      return
-    }
-
     this.broadcast('COMBAT_STATE', this._combat.getCombatState())
   }
 
@@ -460,45 +404,13 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     if (!this._combat) return
     const sessionHeroIds = this._combatHeroActorIds.get(client.sessionId) ?? []
     const cs = this._combat.getCombatState()
-    if (!sessionHeroIds.includes(cs.turnQueue[cs.currentActorIndex])) return
-    this.advanceCombatTurn()
-  }
+    if (!getActivePartyActorId(sessionHeroIds, cs)) return
 
-  private advanceCombatTurn(): void {
-    if (!this._combat) return
-    this._combat.advanceTurn()
-
-    // Skip ghost actors
-    let safety = this._combat.getCombatState().turnQueue.length
-    while (safety-- > 0) {
-      const cs = this._combat.getCombatState()
-      const actorId = cs.turnQueue[cs.currentActorIndex]
-      const actor = cs.actors[actorId]
-      if (!actor?.isGhost) break
-      this._combat.advanceTurn()
+    const npcResults = this._combat.endPlayerPhase()
+    for (const r of npcResults) {
+      if (Object.keys(r.hpDeltas).length > 0) this.broadcast('ACTION_RESULT', r)
     }
-
-    const cs = this._combat.getCombatState()
-    const nextId = cs.turnQueue[cs.currentActorIndex]
-    this._combat.startTurn(nextId)
-
-    if (cs.actors[nextId]?.isNPC) {
-      const npcResults = this._combat.processNPCTurns()
-      if (this._combat.isOver()) {
-        this.endCombat()
-        return
-      }
-      for (const npcResult of npcResults) {
-        if (Object.keys(npcResult.hpDeltas).length > 0) {
-          this.broadcast('ACTION_RESULT', npcResult)
-        }
-      }
-      // Restore energy for the player who is now up after NPC turns
-      const afterNPC = this._combat.getCombatState()
-      const playerId = afterNPC.turnQueue[afterNPC.currentActorIndex]
-      if (playerId) this._combat.startTurn(playerId)
-    }
-
+    if (this._combat.isOver()) { this.endCombat(); return }
     this.broadcast('COMBAT_STATE', this._combat.getCombatState())
   }
 

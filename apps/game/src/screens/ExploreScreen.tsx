@@ -59,6 +59,7 @@ export function ExploreScreen() {
   const [sidebarTab, setSidebarTab] = createSignal<'character' | 'inventory'>('character')
   const [showSecondaryModal, setShowSecondaryModal] = createSignal(false)
 
+  const [selectedHeroId, setSelectedHeroId] = createSignal<string | null>(null)
   const [selectedAbility, setSelectedAbility] = createSignal<AbilityDefinition | null>(null)
   const [usedAbilityTitles, setUsedAbilityTitles] = createSignal<string[]>([])
   const [dragPos, setDragPos] = createSignal<Position | null>(null)
@@ -125,19 +126,15 @@ export function ExploreScreen() {
     const cs = state.combatState()
     if (!cs) return null
     const ids = heroIds()
-    if (ids.length === 0) return null
-    // Prefer whichever party member is currently up in the turn queue
-    const currentId = cs.turnQueue[cs.currentActorIndex]
-    if (currentId && ids.includes(currentId)) return currentId
-    // Fall back to any party member present in this combat (for HUD display when it's enemy turn)
-    return Object.values(cs.actors).find((a) => !a.isNPC && ids.includes(a.id))?.id ?? null
+    const sel = selectedHeroId()
+    // Use selected hero if valid and alive
+    if (sel && ids.includes(sel) && cs.actors[sel] && !cs.actors[sel].isGhost) return sel
+    // Fall back to first alive party member
+    return ids.find((id) => cs.actors[id] && !cs.actors[id].isGhost) ?? ids[0] ?? null
   }
 
   const isMyTurn = (): boolean => {
-    const cs = state.combatState()
-    if (!cs) return false
-    const heroId = myHeroId()
-    return cs.turnQueue[cs.currentActorIndex] === heroId
+    return state.combatState()?.isPlayerTurn ?? false
   }
 
   const myActor = () => {
@@ -384,12 +381,6 @@ export function ExploreScreen() {
     boardEl.dispatchEvent(new CustomEvent('show-action', { detail: { id: ev.id, action: ev.action } }))
   }))
 
-  const currentCombatActor = createMemo(() => {
-    const cs = state.combatState()
-    if (!cs) return null
-    return cs.actors[cs.turnQueue[cs.currentActorIndex]] ?? null
-  })
-
   return (
     <Show when={!state.error()} fallback={<div style={{ padding: '20px', color: 'red' }}>Connection error: {state.error()}</div>}>
       <Show when={state.connected()} fallback={<div style={{ padding: '20px', background: '#111', color: '#fff', 'min-height': '100vh' }}>Connecting to The Inn…</div>}>
@@ -415,15 +406,71 @@ export function ExploreScreen() {
               onTokenAction={(action) => state.action(action)}
             />
 
-            {/* Turn indicator */}
-            <Show when={currentCombatActor()}>
-              {(current) => (
+            {/* Combat debug overlay */}
+            <Show when={state.combatState()}>
+              {(cs) => (
+                <div style={{
+                  position: 'absolute', bottom: '12px', left: '12px', 'z-index': '10',
+                  background: 'rgba(0,0,0,0.75)', border: '1px solid #444',
+                  'border-radius': '4px', padding: '4px 8px', 'font-size': '10px', color: '#0f0',
+                  'font-family': 'monospace',
+                }}>
+                  {Object.values(cs().actors).map((a) => `${a.name}@${a.position.x},${a.position.y}`).join(' | ')}
+                </div>
+              )}
+            </Show>
+
+            {/* Initiative tracker */}
+            <Show when={state.combatState()}>
+              {(cs) => (
                 <div style={{
                   position: 'absolute', top: '12px', left: '12px', 'z-index': '10',
-                  background: 'rgba(5,10,5,0.85)', border: '1px solid rgba(255,255,255,0.1)',
-                  'border-radius': '6px', padding: '6px 12px', 'font-size': '11px', color: '#aaa',
+                  background: 'rgba(5,10,5,0.88)', border: '1px solid rgba(255,255,255,0.1)',
+                  'border-radius': '6px', padding: '6px 10px', 'font-size': '11px', color: '#aaa',
+                  display: 'flex', 'flex-direction': 'column', gap: '4px', 'min-width': '140px',
                 }}>
-                  <span>{'⚔'} {current().name}{'\''}s turn {'·'} Round {state.combatState()?.round ?? 0}</span>
+                  <div style={{ color: '#666', 'font-size': '10px', 'letter-spacing': '0.08em', 'text-transform': 'uppercase', 'margin-bottom': '2px' }}>
+                    Round {cs().round}
+                  </div>
+                  <For each={cs().phases}>
+                    {(phase, i) => (
+                      <div style={{
+                        display: 'flex', 'flex-direction': 'column', gap: '2px',
+                        padding: '3px 6px', 'border-radius': '4px',
+                        background: i() === cs().currentPhaseIndex ? 'rgba(100,200,100,0.15)' : 'transparent',
+                        'border-left': i() === cs().currentPhaseIndex ? '2px solid rgba(100,200,100,0.6)' : '2px solid transparent',
+                      }}>
+                        <span style={{ color: i() === cs().currentPhaseIndex ? '#9f9' : '#666', 'font-weight': i() === cs().currentPhaseIndex ? '600' : '400' }}>
+                          {phase.label}
+                        </span>
+                        <Show when={phase.isPlayers}>
+                          <div style={{ display: 'flex', gap: '4px', 'flex-wrap': 'wrap' }}>
+                            <For each={phase.actorIds.filter(id => heroIds().includes(id))}>
+                              {(heroId) => {
+                                const actor = cs().actors[heroId]
+                                const isSelected = () => myHeroId() === heroId
+                                return (
+                                  <button
+                                    onClick={() => setSelectedHeroId(heroId)}
+                                    style={{
+                                      padding: '1px 6px', 'font-size': '10px', cursor: 'pointer',
+                                      background: isSelected() ? 'rgba(100,200,100,0.2)' : 'rgba(255,255,255,0.05)',
+                                      color: actor?.isGhost ? '#444' : (isSelected() ? '#9f9' : '#888'),
+                                      border: isSelected() ? '1px solid rgba(100,200,100,0.4)' : '1px solid rgba(255,255,255,0.1)',
+                                      'border-radius': '3px',
+                                      'text-decoration': actor?.isGhost ? 'line-through' : 'none',
+                                    }}
+                                  >
+                                    {actor?.name ?? heroId}
+                                  </button>
+                                )
+                              }}
+                            </For>
+                          </div>
+                        </Show>
+                      </div>
+                    )}
+                  </For>
                 </div>
               )}
             </Show>

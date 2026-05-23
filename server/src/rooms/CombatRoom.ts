@@ -55,7 +55,9 @@ export class CombatRoom extends TurnRoom {
   }
 
   private autoSkipCurrentActor(): void {
-    const currentActorId = this.combatState.turnQueue[this.combatState.currentActorIndex]
+    const cs = this.combatState
+    const phase = cs.phases[cs.currentPhaseIndex]
+    const currentActorId = phase?.actorIds[0] ?? ''
     const skipAction: Action = { type: 'skip', actorId: currentActorId }
     this.handlePlayerAction({ sessionId: 'server' } as Client, skipAction)
   }

@@ -27,8 +27,12 @@ function makeInitialState(): CombatState {
   const goblin = makeNPC()
   return {
     roomId: 'integration-room',
-    turnQueue: [player.id, goblin.id],
-    currentActorIndex: 0,
+    phases: [
+      { id: 'players', isPlayers: true, actorIds: [player.id], label: 'Players' },
+      { id: 'group-0', isPlayers: false, actorIds: [goblin.id], label: 'Goblin' },
+    ],
+    currentPhaseIndex: 0,
+    isPlayerTurn: true,
     actors: { [player.id]: player, [goblin.id]: goblin },
     round: 1,
     log: [],
@@ -49,9 +53,11 @@ describe('full combat simulation', () => {
     let state = makeInitialState()
     let iterations = 0
     const maxIterations = 100
+    const actorIds = Object.keys(state.actors)
+    let actorIndex = 0
 
     while (!state.isOver && iterations < maxIterations) {
-      const actorId = state.turnQueue[state.currentActorIndex % state.turnQueue.length]
+      const actorId = actorIds[actorIndex % actorIds.length]
       state = regenEnergy(actorId, state)
       const actor = state.actors[actorId]
 
@@ -68,10 +74,7 @@ describe('full combat simulation', () => {
 
       const result = resolveAction(actorId, action, state)
       state = applyResult(result, state)
-      state = {
-        ...state,
-        currentActorIndex: (state.currentActorIndex + 1) % state.turnQueue.length,
-      }
+      actorIndex++
       iterations++
     }
 
@@ -92,9 +95,11 @@ describe('full combat simulation', () => {
   it('hp never goes below 0 or above maxHp during simulation', () => {
     let state = makeInitialState()
     let iterations = 0
+    const actorIds = Object.keys(state.actors)
+    let actorIndex = 0
 
     while (!state.isOver && iterations < 100) {
-      const actorId = state.turnQueue[state.currentActorIndex % state.turnQueue.length]
+      const actorId = actorIds[actorIndex % actorIds.length]
       state = regenEnergy(actorId, state)
       const actor = state.actors[actorId]
       const valid = getValidActions(actorId, state)
@@ -104,7 +109,7 @@ describe('full combat simulation', () => {
 
       const result = resolveAction(actorId, action, state)
       state = applyResult(result, state)
-      state = { ...state, currentActorIndex: (state.currentActorIndex + 1) % state.turnQueue.length }
+      actorIndex++
 
       for (const a of Object.values(state.actors)) {
         expect(a.hp).toBeGreaterThanOrEqual(0)

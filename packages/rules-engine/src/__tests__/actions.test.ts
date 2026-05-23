@@ -22,8 +22,9 @@ const makeActor = (overrides: Partial<ActorState> = {}): ActorState => ({
 
 const makeState = (actors: Record<string, ActorState>): CombatState => ({
   roomId: 'room-1',
-  turnQueue: Object.keys(actors),
-  currentActorIndex: 0,
+  phases: [{ id: 'players', isPlayers: true, actorIds: Object.keys(actors), label: 'Players' }],
+  currentPhaseIndex: 0,
+  isPlayerTurn: true,
   actors,
   round: 1,
   log: [],

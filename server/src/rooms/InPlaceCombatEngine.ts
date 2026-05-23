@@ -1,6 +1,6 @@
 import { resolveAction, applyResult } from 'rules-engine'
 import { getMoveCost } from 'shared-types'
-import type { ActorState, CombatState, Action, ActionResult, Position } from 'shared-types'
+import type { ActorState, CombatState, CombatPhase, Action, ActionResult, Position } from 'shared-types'
 
 const DIRS: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1]]
 
@@ -20,32 +20,64 @@ export class InPlaceCombatEngine {
   private walls: number[][]
   private usedAbilities: Map<string, Set<string>> = new Map()
 
-  constructor(actors: ActorState[], walls: number[][], enemyLevel: number, roomId = 'inn') {
+  /**
+   * @param playerActors  All party hero actors
+   * @param enemyGroups   Each inner array is one group that acts together
+   * @param walls         Walkable map (0 = floor)
+   * @param enemyLevel    Used for initiative roll (player d20 vs this number)
+   * @param roomId
+   */
+  constructor(
+    playerActors: ActorState[],
+    enemyGroups: ActorState[][],
+    walls: number[][],
+    enemyLevel: number,
+    roomId = 'inn',
+  ) {
     this.walls = walls
 
     const playerRoll = rollD20()
-    const playersWin = playerRoll > enemyLevel
+    const playersFirst = playerRoll > enemyLevel
 
-    const players = actors.filter(a => !a.isNPC)
-    const npcs = actors.filter(a => a.isNPC)
-    const ordered = playersWin ? [...players, ...npcs] : [...npcs, ...players]
+    const playerPhase: CombatPhase = {
+      id: 'players',
+      isPlayers: true,
+      actorIds: playerActors.map(a => a.id),
+      label: 'Players',
+    }
+    const enemyPhases: CombatPhase[] = enemyGroups.map((group, i) => ({
+      id: `group-${i}`,
+      isPlayers: false,
+      actorIds: group.map(a => a.id),
+      label: group.length === 1 ? group[0].name : `${group[0].name} group`,
+    }))
+
+    const phases = playersFirst
+      ? [playerPhase, ...enemyPhases]
+      : [...enemyPhases, playerPhase]
 
     const actorsMap: Record<string, ActorState> = {}
-    for (const a of actors) {
-      actorsMap[a.id] = playersWin || a.isNPC
-        ? a
-        : { ...a, energy: Math.floor(a.maxEnergy / 2) }
+    for (const a of playerActors) {
+      actorsMap[a.id] = playersFirst ? a : { ...a, energy: Math.floor(a.maxEnergy / 2) }
     }
+    for (const group of enemyGroups) {
+      for (const a of group) {
+        actorsMap[a.id] = a
+      }
+    }
+
+    const activeEnemyIds = enemyGroups.flat().map(a => a.id)
 
     this.state = {
       roomId,
-      turnQueue: ordered.map(a => a.id),
-      currentActorIndex: 0,
+      phases,
+      currentPhaseIndex: 0,
+      isPlayerTurn: phases[0].isPlayers,
       actors: actorsMap,
       round: 1,
       log: [],
       isOver: false,
-      activeEnemyIds: npcs.map(a => a.id),
+      activeEnemyIds,
     }
   }
 
@@ -61,26 +93,38 @@ export class InPlaceCombatEngine {
     return this.state.winningSide ?? null
   }
 
-  startTurn(actorId: string): void {
-    const actor = this.state.actors[actorId]
-    if (!actor) return
-    this.state = {
-      ...this.state,
-      actors: { ...this.state.actors, [actorId]: { ...actor, energy: actor.maxEnergy } },
+  /** Restore full AP for all actors in the given phase. Called at start of a phase. */
+  startPhase(phaseIndex: number): void {
+    const phase = this.state.phases[phaseIndex]
+    if (!phase) return
+    const updated: Record<string, ActorState> = { ...this.state.actors }
+    for (const id of phase.actorIds) {
+      const actor = updated[id]
+      if (actor) {
+        updated[id] = { ...actor, energy: actor.maxEnergy }
+        this.usedAbilities.set(id, new Set())
+      }
     }
-    this.usedAbilities.set(actorId, new Set())
+    this.state = { ...this.state, actors: updated }
   }
 
+  /** Called when player clicks End Turn or all party AP is exhausted. Returns NPC results from subsequent enemy phases. */
+  endPlayerPhase(): ActionResult[] {
+    return this.advancePhase()
+  }
+
+  /** Handle a player action during the player phase. Any party actor may act. */
   handlePlayerAction(actorId: string, action: Action): ActionResult {
+    if (!this.state.isPlayerTurn) throw new Error('Not player turn')
     const actor = this.state.actors[actorId]
     if (!actor) throw new Error(`Actor ${actorId} not found`)
+    if (actor.isGhost) throw new Error('Actor is defeated')
 
     if (action.type === 'move') {
       const cost = getMoveCost(actor.position, action.destination, this.walls)
       if (cost === null) throw new Error('Destination unreachable')
       if (cost > actor.energy) throw new Error('Insufficient energy')
       const result = resolveAction(actorId, action, this.state)
-      // resolveAction for move returns empty energyDeltas — inject the cost
       const withEnergy: ActionResult = { ...result, energyDeltas: { [actorId]: -cost } }
       this.state = applyResult(withEnergy, this.state)
       this.markGhosts()
@@ -91,7 +135,6 @@ export class InPlaceCombatEngine {
       const abilityId = action.ability.id
       const used = this.usedAbilities.get(actorId) ?? new Set()
       if (used.has(abilityId)) throw new Error(`Ability ${abilityId} already used this turn`)
-      // resolveAction for ability already includes energyDeltas with the cost
       const result = resolveAction(actorId, action, this.state)
       this.state = applyResult(result, this.state)
       used.add(abilityId)
@@ -103,45 +146,23 @@ export class InPlaceCombatEngine {
     throw new Error('Unknown action type')
   }
 
-  processNPCTurns(): ActionResult[] {
-    const results: ActionResult[] = []
-    let safety = this.state.turnQueue.length * 2
-
-    while (safety-- > 0) {
-      const actorId = this.state.turnQueue[this.state.currentActorIndex]
-      const actor = this.state.actors[actorId]
-      if (!actor?.isNPC) break
-
-      this.startTurn(actorId)
-      const turnResults = this.runNPCTurn(actorId)
-      results.push(...turnResults)
-
-      if (this.state.isOver) break
-      this.advanceTurn()
-      // Stop if we've wrapped back to a player turn
-      const nextId = this.state.turnQueue[this.state.currentActorIndex]
-      if (!this.state.actors[nextId]?.isNPC) break
-    }
-
-    return results
-  }
-
-  addActor(actor: ActorState): void {
-    const insertAt = (this.state.currentActorIndex + 1) % this.state.turnQueue.length
-    const newQueue = [...this.state.turnQueue]
-    newQueue.splice(insertAt, 0, actor.id)
+  /** Manually add an actor to an existing phase (for join-combat). */
+  addActorToPhase(actor: ActorState, phaseId: string): void {
+    const phaseIdx = this.state.phases.findIndex(p => p.id === phaseId)
+    if (phaseIdx === -1) return
+    const phase = this.state.phases[phaseIdx]
+    const updatedPhases = [...this.state.phases]
+    updatedPhases[phaseIdx] = { ...phase, actorIds: [...phase.actorIds, actor.id] }
     this.state = {
       ...this.state,
+      phases: updatedPhases,
       actors: { ...this.state.actors, [actor.id]: actor },
-      turnQueue: newQueue,
     }
   }
 
-  advanceTurn(): void {
-    this.state = {
-      ...this.state,
-      currentActorIndex: (this.state.currentActorIndex + 1) % this.state.turnQueue.length,
-    }
+  /** Legacy: add actor for joining an existing combat (inserts into player phase). */
+  addActor(actor: ActorState): void {
+    this.addActorToPhase(actor, 'players')
   }
 
   applyHeal(actorId: string, healAmount: number, energyCost: number): void {
@@ -153,6 +174,85 @@ export class InPlaceCombatEngine {
       ...this.state,
       actors: { ...this.state.actors, [actorId]: { ...actor, hp: newHp, energy: newEnergy } },
     }
+  }
+
+  /** Advance to the next phase. Auto-processes enemy phases until player phase or combat over. Returns all NPC action results. */
+  private advancePhase(): ActionResult[] {
+    const results: ActionResult[] = []
+    const totalPhases = this.state.phases.length
+
+    let next = (this.state.currentPhaseIndex + 1) % totalPhases
+    const newRound = next === 0
+
+    if (newRound) {
+      this.state = { ...this.state, round: this.state.round + 1 }
+    }
+
+    this.state = {
+      ...this.state,
+      currentPhaseIndex: next,
+      isPlayerTurn: this.state.phases[next].isPlayers,
+    }
+
+    if (this.state.phases[next].isPlayers) {
+      // Start of player phase — restore AP for all party heroes
+      this.startPhase(next)
+      return results
+    }
+
+    // Auto-process enemy phases until we hit player phase again or run out
+    let safety = totalPhases
+    while (safety-- > 0) {
+      const phase = this.state.phases[this.state.currentPhaseIndex]
+      if (phase.isPlayers) break
+
+      // Start phase (restores enemy AP)
+      this.startPhase(this.state.currentPhaseIndex)
+      const phaseResults = this.runEnemyPhase(phase.actorIds)
+      results.push(...phaseResults)
+
+      if (this.state.isOver) return results
+
+      const nextIdx = (this.state.currentPhaseIndex + 1) % totalPhases
+      const startingNewRound = nextIdx === 0
+      if (startingNewRound) {
+        this.state = { ...this.state, round: this.state.round + 1 }
+      }
+      this.state = {
+        ...this.state,
+        currentPhaseIndex: nextIdx,
+        isPlayerTurn: this.state.phases[nextIdx].isPlayers,
+      }
+      if (this.state.phases[nextIdx].isPlayers) {
+        this.startPhase(nextIdx)
+        break
+      }
+    }
+
+    return results
+  }
+
+  private runEnemyPhase(actorIds: string[]): ActionResult[] {
+    const results: ActionResult[] = []
+    for (const actorId of actorIds) {
+      const actor = this.state.actors[actorId]
+      if (!actor || actor.isGhost) continue
+      this.startActorTurn(actorId)
+      const turnResults = this.runNPCTurn(actorId)
+      results.push(...turnResults)
+      if (this.state.isOver) return results
+    }
+    return results
+  }
+
+  private startActorTurn(actorId: string): void {
+    const actor = this.state.actors[actorId]
+    if (!actor) return
+    this.state = {
+      ...this.state,
+      actors: { ...this.state.actors, [actorId]: { ...actor, energy: actor.maxEnergy } },
+    }
+    this.usedAbilities.set(actorId, new Set())
   }
 
   private markGhosts(): void {
@@ -168,6 +268,18 @@ export class InPlaceCombatEngine {
     }
     if (changed) {
       this.state = { ...this.state, actors: updated }
+    }
+
+    // Check win/loss
+    const players = Object.values(this.state.actors).filter(a => !a.isNPC)
+    const enemies = Object.values(this.state.actors).filter(a => a.isNPC)
+    const allPlayersGhost = players.length > 0 && players.every(a => a.isGhost)
+    const allEnemiesGhost = enemies.length > 0 && enemies.every(a => a.isGhost)
+
+    if (allPlayersGhost) {
+      this.state = { ...this.state, isOver: true, winningSide: 'npcs' }
+    } else if (allEnemiesGhost) {
+      this.state = { ...this.state, isOver: true, winningSide: 'players' }
     }
   }
 
@@ -198,7 +310,6 @@ export class InPlaceCombatEngine {
         }
       }
 
-      // Move toward nearest player (1 step)
       const target = players.reduce((closest, p) => {
         const d = Math.abs(p.position.x - actor.position.x) + Math.abs(p.position.y - actor.position.y)
         const bd = Math.abs(closest.position.x - actor.position.x) + Math.abs(closest.position.y - actor.position.y)

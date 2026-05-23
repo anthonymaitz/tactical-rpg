@@ -26,8 +26,9 @@ function makeState(actors: ActorState[], winningSide?: 'players' | 'npcs'): Comb
   for (const a of actors) actorMap[a.id] = a
   return {
     roomId: 'test-room',
-    turnQueue: actors.map(a => a.id),
-    currentActorIndex: 0,
+    phases: [{ id: 'players', isPlayers: true, actorIds: actors.map(a => a.id), label: 'Players' }],
+    currentPhaseIndex: 0,
+    isPlayerTurn: true,
     actors: actorMap,
     round: 3,
     log: ['hit', 'miss'],

@@ -4,11 +4,12 @@ import { BaseRoom } from './BaseRoom'
 import { EnemyManager } from './EnemyManager'
 import { InPlaceCombatEngine } from './InPlaceCombatEngine'
 import { isValidMove, isAdjacent, getMovementDirection } from './logic/explore-logic'
+import { buildPartyActors, getActivePartyActorId } from './logic/party-combat'
 import { heroService } from '../db/hero-service'
 import { inventoryService } from '../db/inventory-service'
 import { dropTableService } from '../db/drop-table-service'
 import { supabase } from '../db/supabase'
-import type { Position, SceneData, ActorState, EncounterEvent, LootResult } from 'shared-types'
+import type { Position, SceneData, EncounterEvent, LootResult } from 'shared-types'
 import { weaponDamageBonus, ENEMY_SLASH } from './combat-constants'
 
 interface MoveMessage {
@@ -23,12 +24,16 @@ const RECOVERY_HOURS = 8
 
 // Hardcoded spawn points for Verdant Forest MVP — scattered around the spawn pad
 const VERDANT_FOREST_SPAWNS = [
-  { id: 'sp-wolf-1',   col: 42, row: 42, name: 'Wolf',         level: 1, spawnRadius: 4, dropTableSlug: 'wolf' },
-  { id: 'sp-wolf-2',   col: 58, row: 44, name: 'Wolf',         level: 1, spawnRadius: 4, dropTableSlug: 'wolf' },
-  { id: 'sp-bandit-1', col: 35, row: 50, name: 'Bandit',       level: 2, spawnRadius: 5, dropTableSlug: 'bandit' },
-  { id: 'sp-bandit-2', col: 62, row: 55, name: 'Bandit',       level: 2, spawnRadius: 5, dropTableSlug: 'bandit' },
-  { id: 'sp-spirit-1', col: 50, row: 38, name: 'Forest Spirit',level: 3, spawnRadius: 6, dropTableSlug: 'forest-spirit' },
+  // Wolf pack: two wolves close together — forms two enemy groups in one encounter
+  { id: 'sp-wolf-1',   col: 42, row: 42, name: 'Wolf',         level: 1, spawnRadius: 4, dropTableSlug: 'wolf',         groupId: 'wolves' },
+  { id: 'sp-wolf-2',   col: 44, row: 43, name: 'Wolf',         level: 1, spawnRadius: 4, dropTableSlug: 'wolf',         groupId: 'wolves' },
+  { id: 'sp-bandit-1', col: 35, row: 50, name: 'Bandit',       level: 2, spawnRadius: 5, dropTableSlug: 'bandit',       groupId: undefined },
+  { id: 'sp-bandit-2', col: 62, row: 55, name: 'Bandit',       level: 2, spawnRadius: 5, dropTableSlug: 'bandit',       groupId: undefined },
+  { id: 'sp-spirit-1', col: 50, row: 38, name: 'Forest Spirit',level: 3, spawnRadius: 6, dropTableSlug: 'forest-spirit',groupId: undefined },
 ]
+
+// Radius within which a second enemy is pulled into the same encounter as a separate group
+const MULTI_GROUP_RADIUS = 8
 
 const SPAWN_SLUG_MAP = new Map<string, string>(
   VERDANT_FOREST_SPAWNS.map(sp => [sp.id, sp.dropTableSlug])
@@ -73,7 +78,7 @@ export class BiomeRoom extends BaseRoom<ExploreState> {
   private enemyManager!: EnemyManager
   private _combat: InPlaceCombatEngine | null = null
   private _combatParticipants: Set<string> = new Set()
-  private _combatHeroActorIds: Map<string, string> = new Map()
+  private _combatHeroActorIds: Map<string, string[]> = new Map()
   private _combatEnemySlugs: Map<string, string> = new Map()
 
   async onCreate(options: { biomeId?: string } = {}): Promise<void> {
@@ -250,73 +255,75 @@ export class BiomeRoom extends BaseRoom<ExploreState> {
 
   private async startCombat(client: Client, encounter: EncounterEvent): Promise<void> {
     const userData = client.userData as { heroIds?: string[] }
-    const heroId = (userData?.heroIds ?? [])[0]
-    if (!heroId) return
-
-    const hero = await heroService.getHero(heroId)
-    if (!hero) return
+    const heroIds = userData?.heroIds ?? []
+    if (heroIds.length === 0) return
 
     const current = this.state.players.get(client.sessionId)
     if (!current) return
 
-    const heroActor: ActorState = {
-      id: hero.id,
-      name: hero.name,
-      personality: hero.personality,
-      characterClass: hero.characterClass,
-      die: hero.die,
-      hp: hero.maxHp,
-      maxHp: hero.maxHp,
-      energy: hero.maxEnergy > 0 ? hero.maxEnergy : 10,
-      maxEnergy: hero.maxEnergy > 0 ? hero.maxEnergy : 10,
-      speed: hero.speed,
-      position: { x: current.x, y: current.y },
-      statusEffects: [],
-      isNPC: false,
-      abilities: hero.abilities,
-      damageBonus: weaponDamageBonus(hero.gear?.weapon),
-    }
+    const heroActors = await buildPartyActors(heroIds, { x: current.x, y: current.y })
+    if (heroActors.length === 0) return
 
+    // Build enemy groups: triggering enemy is group-0, plus any nearby enemies as additional groups
     const enemyData = this.enemyManager.getEnemy(encounter.enemyId)
     if (!enemyData) return
 
-    const enemyActor: ActorState = {
-      id: encounter.enemyId,
-      name: encounter.enemyName,
-      personality: 'wild',
+    const makeEnemyActor = (id: string, name: string, data: typeof enemyData, pos: { x: number; y: number }) => ({
+      id,
+      name,
+      personality: 'wild' as const,
       characterClass: 'Enemy',
-      die: 'd6',
-      hp: enemyData.hp,
-      maxHp: enemyData.maxHp,
+      die: 'd6' as const,
+      hp: data.hp,
+      maxHp: data.maxHp,
       energy: 10,
       maxEnergy: 10,
       speed: 3,
-      position: { x: encounter.x, y: encounter.y },
-      statusEffects: [],
+      position: pos,
+      statusEffects: [] as string[],
       isNPC: true,
       abilities: [ENEMY_SLASH],
+    })
+
+    const group0 = [makeEnemyActor(encounter.enemyId, encounter.enemyName, enemyData, { x: encounter.x, y: encounter.y })]
+
+    // Pull nearby enemies (within MULTI_GROUP_RADIUS) in as a second group
+    const nearbyEnemyIds = this.enemyManager.getEnemiesNear(
+      encounter.x, encounter.y, MULTI_GROUP_RADIUS, encounter.enemyId
+    )
+    const group1: typeof group0 = []
+    for (const nearId of nearbyEnemyIds) {
+      const nearData = this.enemyManager.getEnemy(nearId)
+      if (!nearData) continue
+      group1.push(makeEnemyActor(nearId, nearData.name, nearData, { x: nearData.x, y: nearData.y }))
+      // Track loot for this enemy
+      const nearSpawnId = nearId.replace(/^spawned-/, '')
+      const nearSlug = SPAWN_SLUG_MAP.get(nearSpawnId)
+      if (nearSlug) this._combatEnemySlugs.set(nearId, nearSlug)
     }
+
+    const enemyGroups = group1.length > 0 ? [group0, group1] : [group0]
 
     client.send('ENCOUNTER', encounter)
 
     // Open biome — no walls for combat
-    this._combat = new InPlaceCombatEngine([heroActor, enemyActor], [], enemyData.level, 'biome')
+    this._combat = new InPlaceCombatEngine(heroActors, enemyGroups, [], enemyData.level, 'biome')
     this._combatParticipants.add(client.sessionId)
-    this._combatHeroActorIds.set(client.sessionId, hero.id)
+    this._combatHeroActorIds.set(client.sessionId, heroActors.map((a) => a.id))
 
-    // Track drop table slug for this enemy (id = spawned-<spawnPointId>)
+    // Track drop table slug for triggering enemy
     const spawnPointId = encounter.enemyId.replace(/^spawned-/, '')
     const slug = SPAWN_SLUG_MAP.get(spawnPointId)
     if (slug) this._combatEnemySlugs.set(encounter.enemyId, slug)
 
-    this.broadcast('COMBAT_START', this._combat.getCombatState())
+    const initialState = this._combat.getCombatState()
+    this.broadcast('COMBAT_START', initialState)
 
-    const firstId = this._combat.getCombatState().turnQueue[0]
-    if (this._combat.getCombatState().actors[firstId]?.isNPC) {
-      this._combat.processNPCTurns()
-      const cs = this._combat.getCombatState()
-      const playerId = cs.turnQueue[cs.currentActorIndex]
-      if (playerId) this._combat.startTurn(playerId)
+    // If enemies go first, auto-process their phases now
+    if (!initialState.isPlayerTurn) {
+      const npcResults = this._combat.endPlayerPhase()
+      this.broadcastNpcResults(npcResults)
+      if (this._combat.isOver()) { this.endCombat(); return }
       this.broadcast('COMBAT_STATE', this._combat.getCombatState())
     }
   }
@@ -326,123 +333,70 @@ export class BiomeRoom extends BaseRoom<ExploreState> {
     if (this._combatParticipants.has(client.sessionId)) return
 
     const userData = client.userData as { heroIds?: string[] }
-    const heroId = (userData?.heroIds ?? [])[0]
-    if (!heroId) return
-
-    const hero = await heroService.getHero(heroId)
-    if (!hero) return
+    const heroIds = userData?.heroIds ?? []
+    if (heroIds.length === 0) return
 
     const current = this.state.players.get(client.sessionId)
     if (!current) return
 
-    const heroActor: ActorState = {
-      id: hero.id,
-      name: hero.name,
-      personality: hero.personality,
-      characterClass: hero.characterClass,
-      die: hero.die,
-      hp: hero.maxHp,
-      maxHp: hero.maxHp,
-      energy: hero.maxEnergy > 0 ? hero.maxEnergy : 10,
-      maxEnergy: hero.maxEnergy > 0 ? hero.maxEnergy : 10,
-      speed: hero.speed,
-      position: { x: current.x, y: current.y },
-      statusEffects: [],
-      isNPC: false,
-      abilities: hero.abilities,
-      damageBonus: weaponDamageBonus(hero.gear?.weapon),
-    }
+    const joinActors = await buildPartyActors(heroIds, { x: current.x, y: current.y })
+    if (joinActors.length === 0) return
 
-    this._combat.addActor(heroActor)
+    for (const actor of joinActors) this._combat!.addActor(actor)
+
     this._combatParticipants.add(client.sessionId)
-    this._combatHeroActorIds.set(client.sessionId, hero.id)
+    this._combatHeroActorIds.set(client.sessionId, joinActors.map((a) => a.id))
     this.broadcast('COMBAT_STATE', this._combat.getCombatState())
   }
 
   private handleCombatAction(client: Client, action: import('shared-types').Action): void {
     if (!this._combat) return
-    const heroId = this._combatHeroActorIds.get(client.sessionId)
-    if (!heroId) return
-
+    const sessionHeroIds = this._combatHeroActorIds.get(client.sessionId) ?? []
     const cs = this._combat.getCombatState()
-    if (cs.turnQueue[cs.currentActorIndex] !== heroId) return
+    const actorId = getActivePartyActorId(sessionHeroIds, cs, action.actorId)
+    if (!actorId) return
 
     let actionResult: import('shared-types').ActionResult
     try {
-      actionResult = this._combat.handlePlayerAction(heroId, action)
+      actionResult = this._combat.handlePlayerAction(actorId, action)
     } catch (e) {
       client.send('ACTION_REJECTED', { reason: e instanceof Error ? e.message : 'invalid action' })
       return
     }
 
-    if (this._combat.isOver()) {
-      this.endCombat()
-      return
-    }
-
+    if (this._combat.isOver()) { this.endCombat(); return }
     this.broadcast('ACTION_RESULT', actionResult)
-
-    const updatedActor = this._combat.getCombatState().actors[heroId]
-    if (updatedActor && updatedActor.energy <= 0) {
-      this.advanceCombatTurn()
-      return
-    }
-
     this.broadcast('COMBAT_STATE', this._combat.getCombatState())
   }
 
   private handleEndTurn(client: Client): void {
     if (!this._combat) return
-    const heroId = this._combatHeroActorIds.get(client.sessionId)
-    if (!heroId) return
+    const sessionHeroIds = this._combatHeroActorIds.get(client.sessionId) ?? []
     const cs = this._combat.getCombatState()
-    if (cs.turnQueue[cs.currentActorIndex] !== heroId) return
-    this.advanceCombatTurn()
+    if (!getActivePartyActorId(sessionHeroIds, cs)) return
+    this.runEndTurn()
   }
 
-  private advanceCombatTurn(): void {
+  private runEndTurn(): void {
     if (!this._combat) return
-    this._combat.advanceTurn()
-
-    let safety = this._combat.getCombatState().turnQueue.length
-    while (safety-- > 0) {
-      const cs = this._combat.getCombatState()
-      const actorId = cs.turnQueue[cs.currentActorIndex]
-      const actor = cs.actors[actorId]
-      if (!actor?.isGhost) break
-      this._combat.advanceTurn()
-    }
-
-    const cs = this._combat.getCombatState()
-    const nextId = cs.turnQueue[cs.currentActorIndex]
-    this._combat.startTurn(nextId)
-
-    if (cs.actors[nextId]?.isNPC) {
-      const npcResults = this._combat.processNPCTurns()
-      if (this._combat.isOver()) {
-        this.endCombat()
-        return
-      }
-      for (const npcResult of npcResults) {
-        if (Object.keys(npcResult.hpDeltas).length > 0) {
-          this.broadcast('ACTION_RESULT', npcResult)
-        }
-      }
-      const afterNPC = this._combat.getCombatState()
-      const playerId = afterNPC.turnQueue[afterNPC.currentActorIndex]
-      if (playerId) this._combat.startTurn(playerId)
-    }
-
+    const npcResults = this._combat.endPlayerPhase()
+    this.broadcastNpcResults(npcResults)
+    if (this._combat.isOver()) { this.endCombat(); return }
     this.broadcast('COMBAT_STATE', this._combat.getCombatState())
+  }
+
+  private broadcastNpcResults(results: import('shared-types').ActionResult[]): void {
+    for (const r of results) {
+      if (Object.keys(r.hpDeltas).length > 0) this.broadcast('ACTION_RESULT', r)
+    }
   }
 
   private async handleUsePotion(client: Client): Promise<void> {
     if (!this._combat) return
-    const heroId = this._combatHeroActorIds.get(client.sessionId)
-    if (!heroId) return
-
+    const sessionHeroIds = this._combatHeroActorIds.get(client.sessionId) ?? []
     const cs = this._combat.getCombatState()
-    if (cs.turnQueue[cs.currentActorIndex] !== heroId) {
+    const heroId = getActivePartyActorId(sessionHeroIds, cs)
+    if (!heroId) {
       client.send('ACTION_REJECTED', { reason: 'not_your_turn' })
       return
     }

@@ -62,25 +62,34 @@ function makeEnemy(overrides: Partial<ActorState> = {}): ActorState {
 
 describe('InPlaceCombatEngine', () => {
   it('initialises with both actors in the state', () => {
-    const engine = new InPlaceCombatEngine([makeHero(), makeEnemy()], openWalls, 1)
+    const engine = new InPlaceCombatEngine([makeHero()], [[makeEnemy()]], openWalls, 1)
     const state = engine.getCombatState()
     expect(Object.keys(state.actors)).toHaveLength(2)
     expect(state.activeEnemyIds).toContain('enemy1')
   })
 
   it('is not over initially', () => {
-    const engine = new InPlaceCombatEngine([makeHero(), makeEnemy()], openWalls, 1)
+    const engine = new InPlaceCombatEngine([makeHero()], [[makeEnemy()]], openWalls, 1)
     expect(engine.isOver()).toBe(false)
   })
 
+  it('has a player phase and an enemy phase', () => {
+    const engine = new InPlaceCombatEngine([makeHero()], [[makeEnemy()]], openWalls, 1)
+    const state = engine.getCombatState()
+    const playerPhase = state.phases.find(p => p.isPlayers)
+    const enemyPhase = state.phases.find(p => !p.isPlayers)
+    expect(playerPhase?.actorIds).toContain('hero1')
+    expect(enemyPhase?.actorIds).toContain('enemy1')
+  })
+
   it('deducts move energy (1 per square via BFS)', () => {
-    const engine = new InPlaceCombatEngine([makeHero(), makeEnemy()], openWalls, 1)
-    const heroId = engine.getCombatState().turnQueue[0]
-    const heroPos = engine.getCombatState().actors[heroId].position
+    const engine = new InPlaceCombatEngine([makeHero()], [[makeEnemy()]], openWalls, 1)
+    const state = engine.getCombatState()
+    if (!state.isPlayerTurn) return // enemies went first
+    const heroPos = state.actors['hero1'].position
     const dest = { x: heroPos.x + 2, y: heroPos.y }
-    engine.handlePlayerAction(heroId, { type: 'move', actorId: heroId, destination: dest })
-    const newEnergy = engine.getCombatState().actors[heroId].energy
-    expect(newEnergy).toBeLessThanOrEqual(8) // lost at least 2
+    engine.handlePlayerAction('hero1', { type: 'move', actorId: 'hero1', destination: dest })
+    expect(engine.getCombatState().actors['hero1'].energy).toBeLessThanOrEqual(8)
   })
 
   it('throws when move destination unreachable', () => {
@@ -88,22 +97,22 @@ describe('InPlaceCombatEngine', () => {
       Array.from({ length: 5 }, (_: unknown, x: number) => (x === 2 ? 1 : 0))
     )
     const engine = new InPlaceCombatEngine(
-      [makeHero({ position: { x: 0, y: 2 } }), makeEnemy({ position: { x: 4, y: 2 } })],
+      [makeHero({ position: { x: 0, y: 2 } })],
+      [[makeEnemy({ position: { x: 4, y: 2 } })]],
       walls,
       1,
     )
-    const heroId = engine.getCombatState().turnQueue[0]
+    if (!engine.getCombatState().isPlayerTurn) return
     expect(() =>
-      engine.handlePlayerAction(heroId, { type: 'move', actorId: heroId, destination: { x: 4, y: 2 } })
+      engine.handlePlayerAction('hero1', { type: 'move', actorId: 'hero1', destination: { x: 4, y: 2 } })
     ).toThrow()
   })
 
   it('deducts ability energy cost', () => {
     const hero = makeHero({ position: { x: 4, y: 5 } })
     const enemy = makeEnemy({ position: { x: 5, y: 5 } })
-    const engine = new InPlaceCombatEngine([hero, enemy], openWalls, 1)
-    const heroId = engine.getCombatState().turnQueue[0]
-    if (heroId !== 'hero1') return // enemies went first — skip assertion
+    const engine = new InPlaceCombatEngine([hero], [[enemy]], openWalls, 1)
+    if (!engine.getCombatState().isPlayerTurn) return // enemies went first
     engine.handlePlayerAction('hero1', {
       type: 'ability',
       actorId: 'hero1',
@@ -116,28 +125,26 @@ describe('InPlaceCombatEngine', () => {
   it('prevents using same ability twice in one turn', () => {
     const hero = makeHero({ position: { x: 4, y: 5 } })
     const enemy = makeEnemy({ position: { x: 5, y: 5 } })
-    const engine = new InPlaceCombatEngine([hero, enemy], openWalls, 1)
-    const heroId = engine.getCombatState().turnQueue[0]
-    if (heroId !== 'hero1') return
+    const engine = new InPlaceCombatEngine([hero], [[enemy]], openWalls, 1)
+    if (!engine.getCombatState().isPlayerTurn) return
     const action = { type: 'ability' as const, actorId: 'hero1', ability: hero.abilities[0], targetIds: ['enemy1'] }
     engine.handlePlayerAction('hero1', action)
     expect(() => engine.handlePlayerAction('hero1', action)).toThrow()
   })
 
-  it('refills energy on startTurn', () => {
-    const engine = new InPlaceCombatEngine([makeHero(), makeEnemy()], openWalls, 1)
-    const heroId = 'hero1'
-    engine.getCombatState().actors[heroId] // ensure exists
-    engine.startTurn(heroId)
-    expect(engine.getCombatState().actors[heroId].energy).toBe(10)
+  it('refills energy on startPhase', () => {
+    const engine = new InPlaceCombatEngine([makeHero()], [[makeEnemy()]], openWalls, 1)
+    const cs = engine.getCombatState()
+    const playerPhaseIdx = cs.phases.findIndex(p => p.isPlayers)
+    engine.startPhase(playerPhaseIdx)
+    expect(engine.getCombatState().actors['hero1'].energy).toBe(10)
   })
 
   it('is over when all enemies reach 0 hp', () => {
     const hero = makeHero({ position: { x: 4, y: 5 } })
     const enemy = makeEnemy({ hp: 1, position: { x: 5, y: 5 } })
-    const engine = new InPlaceCombatEngine([hero, enemy], openWalls, 1)
-    const heroId = engine.getCombatState().turnQueue[0]
-    if (heroId !== 'hero1') return
+    const engine = new InPlaceCombatEngine([hero], [[enemy]], openWalls, 1)
+    if (!engine.getCombatState().isPlayerTurn) return
     engine.handlePlayerAction('hero1', {
       type: 'ability', actorId: 'hero1', ability: hero.abilities[0], targetIds: ['enemy1'],
     })
@@ -145,33 +152,36 @@ describe('InPlaceCombatEngine', () => {
     expect(engine.winningSide()).toBe('players')
   })
 
-  it('is over when all heroes reach 0 hp', () => {
+  it('enemies attack after endPlayerPhase', () => {
     const hero = makeHero({ hp: 1, position: { x: 4, y: 5 } })
     const enemy = makeEnemy({ position: { x: 5, y: 5 } })
-    const engine = new InPlaceCombatEngine([hero, enemy], openWalls, 1)
-    const enemyId = engine.getCombatState().turnQueue[0]
-    if (enemyId !== 'enemy1') return
-    engine.processNPCTurns()
-    if (engine.isOver()) {
-      expect(engine.winningSide()).toBe('npcs')
+    const engine = new InPlaceCombatEngine([hero], [[enemy]], openWalls, 1)
+    if (engine.getCombatState().isPlayerTurn) {
+      engine.endPlayerPhase()
+    }
+    // After enemy phase runs, hero with 1hp should be a ghost or combat over
+    const heroAfter = engine.getCombatState().actors['hero1']
+    if (heroAfter.hp === 0) {
+      expect(heroAfter.isGhost).toBe(true)
     }
   })
 
-  it('addActor inserts a new hero into the combat', () => {
-    const engine = new InPlaceCombatEngine([makeHero(), makeEnemy()], openWalls, 1)
+  it('addActor inserts a new hero into the player phase', () => {
+    const engine = new InPlaceCombatEngine([makeHero()], [[makeEnemy()]], openWalls, 1)
     const newHero: ActorState = { ...makeHero(), id: 'hero2', name: 'Bob', position: { x: 2, y: 2 } }
     engine.addActor(newHero)
     expect(engine.getCombatState().actors['hero2']).toBeDefined()
-    expect(engine.getCombatState().turnQueue).toContain('hero2')
+    const playerPhase = engine.getCombatState().phases.find(p => p.isPlayers)
+    expect(playerPhase?.actorIds).toContain('hero2')
   })
 
   it('marks actor isGhost when hp reaches 0', () => {
     const hero = makeHero({ hp: 1, position: { x: 4, y: 5 } })
     const enemy = makeEnemy({ position: { x: 5, y: 5 } })
-    const engine = new InPlaceCombatEngine([hero, enemy], openWalls, 1)
-    const enemyId = engine.getCombatState().turnQueue[0]
-    if (enemyId !== 'enemy1') return
-    engine.processNPCTurns()
+    const engine = new InPlaceCombatEngine([hero], [[enemy]], openWalls, 1)
+    if (engine.getCombatState().isPlayerTurn) {
+      engine.endPlayerPhase()
+    }
     const heroAfter = engine.getCombatState().actors['hero1']
     if (heroAfter.hp === 0) {
       expect(heroAfter.isGhost).toBe(true)

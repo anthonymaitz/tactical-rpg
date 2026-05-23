@@ -95,9 +95,20 @@ export class EnemyManager {
     return found
   }
 
-  getEnemy(id: string): { id: string; name: string; hp: number; maxHp: number; level: number } | undefined {
+  getEnemy(id: string): { id: string; name: string; hp: number; maxHp: number; level: number; x: number; y: number } | undefined {
     const found = this.enemies.get(id)
-    return found ? { id: found.id, name: found.name, hp: found.hp, maxHp: found.maxHp, level: found.level } : undefined
+    return found ? { id: found.id, name: found.name, hp: found.hp, maxHp: found.maxHp, level: found.level, x: found.x, y: found.y } : undefined
+  }
+
+  /** Return IDs of enemies within Manhattan distance `radius` of (px, py), excluding `excludeId`. */
+  getEnemiesNear(px: number, py: number, radius: number, excludeId: string): string[] {
+    const result: string[] = []
+    this.enemies.forEach((e, id) => {
+      if (id === excludeId) return
+      const dist = Math.abs(e.x - px) + Math.abs(e.y - py)
+      if (dist <= radius) result.push(id)
+    })
+    return result
   }
 
   removeEnemy(id: string): void {

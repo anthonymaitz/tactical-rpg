@@ -46,8 +46,9 @@ describe('PlaysetBoard', () => {
   it('renders in combat mode with combatState', () => {
     const combatState = {
       roomId: 'room1',
-      turnQueue: [],
-      currentActorIndex: 0,
+      phases: [{ id: 'players', isPlayers: true, actorIds: [], label: 'Players' }],
+      currentPhaseIndex: 0,
+      isPlayerTurn: true,
       actors: {},
       round: 1,
       log: [],
