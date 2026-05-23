@@ -89,6 +89,32 @@ export async function getSqClassAbilities(classId: string): Promise<SqAbility[]>
   }))
 }
 
+export async function getSqClassSecondaryAbilities(classId: string): Promise<{ inCombat: SqAbility | null; outOfCombat: SqAbility | null }> {
+  const { data, error } = await supabase
+    .from('sq_abilities')
+    .select('*')
+    .eq('source', classId)
+    .in('context', ['inCombat', 'outOfCombat'])
+    .order('id', { ascending: true })
+  if (error) throw error
+  const abilities = (data ?? []).map((a) => ({
+    id: a.id,
+    title: a.title,
+    body: a.body,
+    context: a.context,
+    source: a.source,
+    energyCost: a.energy_cost,
+    targetType: a.target_type,
+    effect: a.effect,
+    diceNotation: a.dice_notation,
+    statusEffects: a.status_effects,
+  })) as SqAbility[]
+  return {
+    inCombat: abilities.find((a) => a.context === 'inCombat') ?? null,
+    outOfCombat: abilities.find((a) => a.context === 'outOfCombat') ?? null,
+  }
+}
+
 export async function listSqClasses(): Promise<Array<{ id: string; firstAbility: SqAbility | null }>> {
   const { data, error } = await supabase
     .from('sq_classes')

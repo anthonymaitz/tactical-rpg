@@ -36,7 +36,7 @@ export type HeroRecord = {
   gear: GearSlots
   starRating: number
   secondaryClass: string | null
-  secondaryAbility: AbilityDefinition | null
+  secondaryAbilities: AbilityDefinition[]
   classXp: Record<string, number>
   recoveryEndsAt: string | null
   createdAt: string

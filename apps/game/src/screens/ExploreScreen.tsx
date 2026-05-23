@@ -106,7 +106,19 @@ export function ExploreScreen() {
     return JSON.stringify(generateSceneFromInn(THE_INN))
   })
   const sqContent = useContent()
-  const contentJson = () => JSON.stringify(sqContent() ?? {})
+  const contentJson = () => {
+    const c = sqContent()
+    if (!c) return '{}'
+    const secondaryClass = state.heroMeta().secondaryClass
+    const primaryClass = state.heroState()?.class
+    if (!secondaryClass || !primaryClass) return JSON.stringify(c)
+    // Inject the secondary class's AbilityCards into the content under the primary class source
+    // so the HUD renders them in the correct tab (inCombat / outOfCombat) automatically
+    const injected = c.abilities
+      .filter((a) => a.source === secondaryClass)
+      .map((a) => ({ ...a, source: primaryClass }))
+    return JSON.stringify({ ...c, abilities: [...c.abilities, ...injected] })
+  }
 
   const myHeroId = (): string | null => {
     const cs = state.combatState()

@@ -1,7 +1,7 @@
 // server/src/db/hero-service.ts
 import { supabase } from './supabase'
 import { applyLevelUp, getRecoveryEndsAt } from './hero-logic'
-import { getSqClassAbilities } from './sq-content'
+import { getSqClassSecondaryAbilities } from './sq-content'
 import type { HeroRecord, GearSlots, AbilityDefinition } from 'shared-types'
 
 type NewHeroData = {
@@ -32,7 +32,7 @@ function toHeroRecord(row: Record<string, unknown>): HeroRecord {
     gear: row.gear as GearSlots,
     starRating: (row.star_rating as number) ?? 0,
     secondaryClass: (row.secondary_class as string | null) ?? null,
-    secondaryAbility: (row.secondary_ability as AbilityDefinition | null) ?? null,
+    secondaryAbilities: (row.secondary_abilities as AbilityDefinition[]) ?? [],
     classXp: (row.class_xp as Record<string, number>) ?? {},
     recoveryEndsAt: row.recovery_ends_at as string | null,
     createdAt: row.created_at as string,
@@ -165,8 +165,8 @@ export const heroService = {
   },
 
   async setSecondaryClass(heroId: string, className: string): Promise<HeroRecord> {
-    const sqAbilities = await getSqClassAbilities(className)
-    const mapped: AbilityDefinition[] = sqAbilities.map((a) => ({
+    const { inCombat, outOfCombat } = await getSqClassSecondaryAbilities(className)
+    const toAbilityDef = (a: NonNullable<typeof inCombat>): AbilityDefinition => ({
       id: a.id,
       name: a.title,
       energyCost: a.energyCost ?? 1,
@@ -175,11 +175,14 @@ export const heroService = {
       effect: (a.effect ?? 'damage') as AbilityDefinition['effect'],
       context: a.context as AbilityDefinition['context'],
       statusEffect: a.statusEffects ?? undefined,
-    }))
-    const firstAbility = mapped[0] ?? null
+    })
+    const secondaryAbilities: AbilityDefinition[] = [
+      ...(inCombat ? [toAbilityDef(inCombat)] : []),
+      ...(outOfCombat ? [toAbilityDef(outOfCombat)] : []),
+    ]
     const { data, error } = await supabase
       .from('heroes')
-      .update({ secondary_class: className, secondary_ability: firstAbility })
+      .update({ secondary_class: className, secondary_abilities: secondaryAbilities })
       .eq('id', heroId)
       .select()
       .single()
@@ -201,7 +204,7 @@ export const heroService = {
   async clearSecondaryClass(heroId: string): Promise<HeroRecord> {
     const { data, error } = await supabase
       .from('heroes')
-      .update({ secondary_class: null, secondary_ability: null, class_xp: {} })
+      .update({ secondary_class: null, secondary_abilities: [], class_xp: {} })
       .eq('id', heroId)
       .select()
       .single()

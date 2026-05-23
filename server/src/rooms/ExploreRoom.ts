@@ -331,7 +331,7 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       isNPC: false,
       abilities: [
         ...hero.abilities,
-        ...(hero.secondaryAbility ? [hero.secondaryAbility] : []),
+        ...hero.secondaryAbilities,
       ],
       damageBonus: weaponDamageBonus(hero.gear?.weapon),
     }
@@ -406,7 +406,7 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       isNPC: false,
       abilities: [
         ...hero.abilities,
-        ...(hero.secondaryAbility ? [hero.secondaryAbility] : []),
+        ...hero.secondaryAbilities,
       ],
       damageBonus: weaponDamageBonus(hero.gear?.weapon),
     }
