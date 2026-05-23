@@ -114,9 +114,10 @@ export function ExploreScreen() {
     if (!secondaryClass || !primaryClass) return JSON.stringify(c)
     // Inject the secondary class's AbilityCards into the content under the primary class source
     // so the HUD renders them in the correct tab (inCombat / outOfCombat) automatically
+    const label = secondaryClass.charAt(0).toUpperCase() + secondaryClass.slice(1)
     const injected = c.abilities
       .filter((a) => a.source === secondaryClass)
-      .map((a) => ({ ...a, source: primaryClass }))
+      .map((a) => ({ ...a, source: primaryClass, title: `${a.title} · ${label}` }))
     return JSON.stringify({ ...c, abilities: [...c.abilities, ...injected] })
   }
 
