@@ -124,22 +124,13 @@ export function ExploreScreen() {
   const myHeroId = (): string | null => {
     const cs = state.combatState()
     if (!cs) return null
-    const playerActors = Object.values(cs.actors).filter((a) => !a.isNPC)
-    // Match by hero ID from session — most reliable
     const ids = heroIds()
-    if (ids.length > 0) {
-      const byId = playerActors.find((a) => ids.includes(a.id))
-      if (byId) return byId.id
-    }
-    // Fallback: initial position match
-    const myPos = state.myPosition()
-    if (myPos) {
-      const byPos = playerActors.find((a) => a.position.x === myPos.x && a.position.y === myPos.y)
-      if (byPos) return byPos.id
-    }
-    // Last resort: only player in this combat (single-player)
-    if (playerActors.length === 1) return playerActors[0].id
-    return null
+    if (ids.length === 0) return null
+    // Prefer whichever party member is currently up in the turn queue
+    const currentId = cs.turnQueue[cs.currentActorIndex]
+    if (currentId && ids.includes(currentId)) return currentId
+    // Fall back to any party member present in this combat (for HUD display when it's enemy turn)
+    return Object.values(cs.actors).find((a) => !a.isNPC && ids.includes(a.id))?.id ?? null
   }
 
   const isMyTurn = (): boolean => {

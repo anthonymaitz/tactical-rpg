@@ -24,7 +24,7 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
   private enemyManager!: EnemyManager
   private _combat: InPlaceCombatEngine | null = null
   private _combatParticipants: Set<string> = new Set()
-  private _combatHeroActorIds: Map<string, string> = new Map()
+  private _combatHeroActorIds: Map<string, string[]> = new Map()
 
   async onCreate(): Promise<void> {
     this.setState(new ExploreState())
@@ -306,16 +306,19 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
 
   private async startCombat(client: Client, encounter: EncounterEvent): Promise<void> {
     const userData = client.userData as { heroIds?: string[] }
-    const heroId = (userData?.heroIds ?? [])[0]
-    if (!heroId) return
-
-    const hero = await heroService.getHero(heroId)
-    if (!hero) return
+    const heroIds = userData?.heroIds ?? []
+    if (heroIds.length === 0) return
 
     const current = this.state.players.get(client.sessionId)
     if (!current) return
 
-    const heroActor: ActorState = {
+    const heroes = (await Promise.all(heroIds.map((id) => heroService.getHero(id)))).filter(
+      (h): h is NonNullable<typeof h> => h !== null,
+    )
+    if (heroes.length === 0) return
+
+    // Spread party in a row to the left of the lead hero's position
+    const heroActors: ActorState[] = heroes.map((hero, i) => ({
       id: hero.id,
       name: hero.name,
       personality: hero.personality,
@@ -326,15 +329,12 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       energy: hero.maxEnergy > 0 ? hero.maxEnergy : 10,
       maxEnergy: hero.maxEnergy > 0 ? hero.maxEnergy : 10,
       speed: hero.speed,
-      position: { x: current.x, y: current.y },
+      position: { x: current.x - i, y: current.y },
       statusEffects: [],
       isNPC: false,
-      abilities: [
-        ...hero.abilities,
-        ...hero.secondaryAbilities,
-      ],
+      abilities: [...hero.abilities, ...hero.secondaryAbilities],
       damageBonus: weaponDamageBonus(hero.gear?.weapon),
-    }
+    }))
 
     const enemyData = this.enemyManager.getEnemy(encounter.enemyId)
     if (!enemyData) return
@@ -358,9 +358,9 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
 
     client.send('ENCOUNTER', encounter)
 
-    this._combat = new InPlaceCombatEngine([heroActor, enemyActor], THE_INN.walls, enemyData.level)
+    this._combat = new InPlaceCombatEngine([...heroActors, enemyActor], THE_INN.walls, enemyData.level)
     this._combatParticipants.add(client.sessionId)
-    this._combatHeroActorIds.set(client.sessionId, hero.id)
+    this._combatHeroActorIds.set(client.sessionId, heroes.map((h) => h.id))
 
     this.broadcast('COMBAT_START', this._combat.getCombatState())
 
@@ -381,54 +381,54 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     if (this._combatParticipants.has(client.sessionId)) return
 
     const userData = client.userData as { heroIds?: string[] }
-    const heroId = (userData?.heroIds ?? [])[0]
-    if (!heroId) return
-
-    const hero = await heroService.getHero(heroId)
-    if (!hero) return
+    const heroIds = userData?.heroIds ?? []
+    if (heroIds.length === 0) return
 
     const current = this.state.players.get(client.sessionId)
     if (!current) return
 
-    const heroActor: ActorState = {
-      id: hero.id,
-      name: hero.name,
-      personality: hero.personality,
-      characterClass: hero.characterClass,
-      die: hero.die,
-      hp: hero.maxHp,
-      maxHp: hero.maxHp,
-      energy: hero.maxEnergy > 0 ? hero.maxEnergy : 10,
-      maxEnergy: hero.maxEnergy > 0 ? hero.maxEnergy : 10,
-      speed: hero.speed,
-      position: { x: current.x, y: current.y },
-      statusEffects: [],
-      isNPC: false,
-      abilities: [
-        ...hero.abilities,
-        ...hero.secondaryAbilities,
-      ],
-      damageBonus: weaponDamageBonus(hero.gear?.weapon),
-    }
+    const heroes = (await Promise.all(heroIds.map((id) => heroService.getHero(id)))).filter(
+      (h): h is NonNullable<typeof h> => h !== null,
+    )
+    if (heroes.length === 0) return
 
-    this._combat.addActor(heroActor)
+    heroes.forEach((hero, i) => {
+      this._combat!.addActor({
+        id: hero.id,
+        name: hero.name,
+        personality: hero.personality,
+        characterClass: hero.characterClass,
+        die: hero.die,
+        hp: hero.maxHp,
+        maxHp: hero.maxHp,
+        energy: hero.maxEnergy > 0 ? hero.maxEnergy : 10,
+        maxEnergy: hero.maxEnergy > 0 ? hero.maxEnergy : 10,
+        speed: hero.speed,
+        position: { x: current.x - i, y: current.y },
+        statusEffects: [],
+        isNPC: false,
+        abilities: [...hero.abilities, ...hero.secondaryAbilities],
+        damageBonus: weaponDamageBonus(hero.gear?.weapon),
+      })
+    })
+
     this._combatParticipants.add(client.sessionId)
-    this._combatHeroActorIds.set(client.sessionId, hero.id)
+    this._combatHeroActorIds.set(client.sessionId, heroes.map((h) => h.id))
     this.broadcast('COMBAT_STATE', this._combat.getCombatState())
   }
 
   private handleCombatAction(client: Client, action: import('shared-types').Action): void {
     if (!this._combat) return
-    const heroId = this._combatHeroActorIds.get(client.sessionId)
-    if (!heroId) return
+    const sessionHeroIds = this._combatHeroActorIds.get(client.sessionId) ?? []
+    if (sessionHeroIds.length === 0) return
 
     const cs = this._combat.getCombatState()
     const currentActorId = cs.turnQueue[cs.currentActorIndex]
-    if (currentActorId !== heroId) return
+    if (!sessionHeroIds.includes(currentActorId)) return
 
     let actionResult: import('shared-types').ActionResult
     try {
-      actionResult = this._combat.handlePlayerAction(heroId, action)
+      actionResult = this._combat.handlePlayerAction(currentActorId, action)
     } catch (e) {
       client.send('ACTION_REJECTED', { reason: e instanceof Error ? e.message : 'invalid action' })
       return
@@ -436,7 +436,7 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
 
     // Award classXp for ability use (fire-and-forget)
     if (action.type === 'ability') {
-      heroService.awardClassXp(heroId, action.ability.id, CLASS_XP_PER_COMBAT_USE).catch(() => {})
+      heroService.awardClassXp(currentActorId, action.ability.id, CLASS_XP_PER_COMBAT_USE).catch(() => {})
     }
 
     if (this._combat.isOver()) {
@@ -447,7 +447,7 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
     this.broadcast('ACTION_RESULT', actionResult)
 
     // Auto-advance if energy depleted
-    const updatedActor = this._combat.getCombatState().actors[heroId]
+    const updatedActor = this._combat.getCombatState().actors[currentActorId]
     if (updatedActor && updatedActor.energy <= 0) {
       this.advanceCombatTurn()
       return
@@ -458,10 +458,9 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
 
   private handleEndTurn(client: Client): void {
     if (!this._combat) return
-    const heroId = this._combatHeroActorIds.get(client.sessionId)
-    if (!heroId) return
+    const sessionHeroIds = this._combatHeroActorIds.get(client.sessionId) ?? []
     const cs = this._combat.getCombatState()
-    if (cs.turnQueue[cs.currentActorIndex] !== heroId) return
+    if (!sessionHeroIds.includes(cs.turnQueue[cs.currentActorIndex])) return
     this.advanceCombatTurn()
   }
 
