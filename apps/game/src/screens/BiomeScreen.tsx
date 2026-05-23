@@ -216,6 +216,16 @@ export function BiomeScreen() {
   function handleCellClick(x: number, y: number) {
     const cs = state.combatState()
     if (cs && isMyTurn()) {
+      // Clicking a party hero token selects it as the active actor
+      const ids = heroIds()
+      const clickedHero = Object.values(cs.actors).find(
+        (a) => !a.isNPC && ids.includes(a.id) && a.position.x === x && a.position.y === y && !a.isGhost
+      )
+      if (clickedHero) {
+        setSelectedHeroId(clickedHero.id)
+        setSelectedAbility(null)
+        return
+      }
       const ability = selectedAbility()
       if (ability) {
         const actor = myActor()
