@@ -598,6 +598,17 @@ export function ExploreScreen() {
                   locked={true}
                   onAbilityActivate={handleAbilityActivate}
                 />
+                <Show when={state.heroMeta().secondaryClass}>
+                  <div style={{
+                    'flex-shrink': '0', padding: '6px 14px',
+                    'border-top': '1px solid rgba(192,128,255,0.15)',
+                    background: 'rgba(192,128,255,0.06)',
+                    display: 'flex', 'align-items': 'center', gap: '6px',
+                  }}>
+                    <span style={{ 'font-size': '10px', color: '#888', 'text-transform': 'uppercase', 'letter-spacing': '0.08em' }}>2nd class</span>
+                    <span style={{ 'font-size': '12px', color: '#c080ff', 'font-weight': '600', 'text-transform': 'capitalize' }}>{state.heroMeta().secondaryClass}</span>
+                  </div>
+                </Show>
               </div>
 
               <Show when={state.combatState() && isMyTurn()}>
