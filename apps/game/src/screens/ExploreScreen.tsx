@@ -151,7 +151,8 @@ export function ExploreScreen() {
 
     if (actor) {
       const energyArray = Array(10).fill(false).map((_, i) => i < actor.energy)
-      const base = h ?? {
+      const isLead = actor.id === heroIds()[0]
+      const base = (isLead && h) ? h : {
         name: actor.name,
         class: actor.characterClass,
         personality: actor.personality,
@@ -269,15 +270,21 @@ export function ExploreScreen() {
         return
       }
       const ability = selectedAbility()
+      const actor = myActor()
+      if (!actor) return
       if (ability) {
-        const actor = myActor()
-        if (!actor) return
         const target = Object.values(cs.actors).find((a) => a.position.x === x && a.position.y === y)
         if (target && target.isNPC && target.hp > 0) {
           state.sendAction({ type: 'ability', actorId: actor.id, ability, targetIds: [target.id] })
           setUsedAbilityTitles((prev) => [...prev, ability.name])
           setSelectedAbility(null)
         }
+        return
+      }
+      // Click-to-move: send move if cell is reachable
+      const cost = getMoveCost(actor.position, { x, y }, THE_INN.walls)
+      if (cost !== null && cost <= actor.energy) {
+        state.sendAction({ type: 'move', actorId: actor.id, destination: { x, y } })
       }
       return
     }
