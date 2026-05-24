@@ -61,7 +61,7 @@ function ExploreBoard(props: PlaysetBoardProps) {
       const combatActorIds = new Set(Object.keys(props.combatState.actors))
       // Non-combatant explore tokens (NPCs, doors) stay on the board during combat
       const bystanders = tokens
-        .filter((t) => !combatActorIds.has(t.id) && (t.type === 'npc' || t.type === 'door'))
+        .filter((t) => !combatActorIds.has(t.id))
         .map((t) => ({ id: t.id, type: t.type, x: t.x, y: t.y, label: t.label, direction: t.direction }))
       const combatants = Object.values(props.combatState.actors).map((a) => ({
         id: a.id,

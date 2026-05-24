@@ -449,6 +449,18 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       this.broadcast('COMBAT_END', { result: 'lose', recoveryEndsAt })
     }
 
+    // Sync explore positions to final combat positions so heroes don't snap back
+    for (const [sessionId, heroIds] of this._combatHeroActorIds.entries()) {
+      const leadActor = cs.actors[heroIds[0]]
+      if (leadActor) {
+        const pos = this.state.players.get(sessionId)
+        if (pos) {
+          pos.x = leadActor.position.x
+          pos.y = leadActor.position.y
+        }
+      }
+    }
+
     this._combat = null
     this._combatParticipants.clear()
     this._combatHeroActorIds.clear()
