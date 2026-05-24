@@ -101,16 +101,16 @@ function ExploreBoard(props: PlaysetBoardProps) {
       props.onCellClick?.(x, y)
     }
     function onTokenMove(e: Event) {
-      const { x, y } = (e as CustomEvent<{ id: string; x: number; y: number }>).detail
+      const { id, x, y } = (e as CustomEvent<{ id: string; x: number; y: number }>).detail
       if (props.onTokenMove) {
-        props.onTokenMove(x, y)
+        props.onTokenMove(x, y, id)
       } else {
         props.onCellClick?.(x, y)
       }
     }
     function onTokenDrag(e: Event) {
-      const { x, y } = (e as CustomEvent<{ id: string; x: number; y: number }>).detail
-      props.onTokenDrag?.(x, y)
+      const { id, x, y } = (e as CustomEvent<{ id: string; x: number; y: number }>).detail
+      props.onTokenDrag?.(x, y, id)
     }
     function onTokenFace(e: Event) {
       const { direction } = (e as CustomEvent<{ id: string; direction: string }>).detail

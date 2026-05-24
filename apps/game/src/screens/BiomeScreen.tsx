@@ -190,7 +190,9 @@ export function BiomeScreen() {
     setSelectedAbility((prev) => prev?.id === ability.id ? null : ability)
   }
 
-  function handleTokenDrag(x: number, y: number) {
+  function handleTokenDrag(x: number, y: number, id: string) {
+    const cs = state.combatState()
+    if (cs && isMyTurn() && heroIds().includes(id)) setSelectedHeroId(id)
     setDragPos({ x, y })
   }
 
@@ -198,12 +200,16 @@ export function BiomeScreen() {
     state.face(direction)
   }
 
-  function handleTokenMove(x: number, y: number) {
+  function handleTokenMove(x: number, y: number, id: string) {
     setDragPos(null)
     const cs = state.combatState()
     if (cs && isMyTurn()) {
-      const actor = myActor()
+      const ids = heroIds()
+      const actorId = ids.includes(id) ? id : myHeroId()
+      if (!actorId) return
+      const actor = cs.actors[actorId]
       if (!actor) return
+      if (ids.includes(id)) setSelectedHeroId(id)
       const cost = getMoveCost(actor.position, { x, y }, NO_WALLS)
       if (cost !== null && cost <= actor.energy) {
         state.sendAction({ type: 'move', actorId: actor.id, destination: { x, y } })

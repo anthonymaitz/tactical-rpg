@@ -29,8 +29,8 @@ export interface PlaysetBoardProps {
   highlights?: Highlight[]
   exploreMap?: ExploreMap
   onCellClick?: (x: number, y: number) => void
-  onTokenMove?: (x: number, y: number) => void
-  onTokenDrag?: (x: number, y: number) => void
+  onTokenMove?: (x: number, y: number, id: string) => void
+  onTokenDrag?: (x: number, y: number, id: string) => void
   onTokenFace?: (direction: string) => void
   onTokenEmote?: (emote: string) => void
   onTokenSpeech?: (speech: string) => void
