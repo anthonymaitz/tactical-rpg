@@ -4,6 +4,7 @@ import { ConnectScreen } from './screens/ConnectScreen'
 import { ExploreScreen } from './screens/ExploreScreen'
 import { BiomeScreen } from './screens/BiomeScreen'
 import { DebugScreen } from './screens/DebugScreen'
+import { BuildPreviewScreen } from './screens/BuildPreviewScreen'
 
 const BuildScreen = lazy(() => import('./screens/BuildScreen'))
 
@@ -13,7 +14,9 @@ export default function App() {
       <Route path="/" component={ConnectScreen} />
       <Route path="/inn" component={ExploreScreen} />
       <Route path="/biome/:biomeId" component={BiomeScreen} />
+      <Route path="/build" component={BuildScreen} />
       <Route path="/build/:slug" component={BuildScreen} />
+      <Route path="/build-preview/:slug" component={BuildPreviewScreen} />
       <Route path="/debug" component={DebugScreen} />
     </Router>
   )
