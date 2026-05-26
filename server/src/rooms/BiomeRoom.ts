@@ -5,6 +5,8 @@ import { EnemyManager } from './EnemyManager'
 import { processMove } from './logic/move-handler'
 import { inventoryService } from '../db/inventory-service'
 import { dropTableService } from '../db/drop-table-service'
+import { getBiomeSpawns } from '../db/biome-service'
+import type { SpawnPoint } from '../db/biome-service'
 import type { Position, SceneData, ActorState, CombatState, EncounterEvent, LootResult } from 'shared-types'
 import { ENEMY_SLASH } from './combat-constants'
 
@@ -17,46 +19,6 @@ const BIOME_SIZE = 100
 const SPAWN_X = 50
 const SPAWN_Y = 50
 
-type SpawnPoint = { id: string; col: number; row: number; name: string; level: number; spawnRadius: number; dropTableSlug: string; groupId: string | undefined }
-
-const VERDANT_FOREST_SPAWNS: SpawnPoint[] = [
-  // Close to entrance — easy to find for testing
-  { id: 'sp-vf-test-1', col: 46, row: 44, name: 'Wolf',         level: 1, spawnRadius: 3, dropTableSlug: 'wolf',         groupId: undefined },
-  { id: 'sp-vf-test-2', col: 53, row: 45, name: 'Wolf',         level: 1, spawnRadius: 3, dropTableSlug: 'wolf',         groupId: undefined },
-  // Wolf pack: two wolves close together — forms two enemy groups in one encounter
-  { id: 'sp-wolf-1',    col: 42, row: 42, name: 'Wolf',         level: 1, spawnRadius: 4, dropTableSlug: 'wolf',         groupId: 'wolves' },
-  { id: 'sp-wolf-2',    col: 44, row: 43, name: 'Wolf',         level: 1, spawnRadius: 4, dropTableSlug: 'wolf',         groupId: 'wolves' },
-  { id: 'sp-bandit-1',  col: 35, row: 50, name: 'Bandit',       level: 2, spawnRadius: 5, dropTableSlug: 'bandit',       groupId: undefined },
-  { id: 'sp-bandit-2',  col: 62, row: 55, name: 'Bandit',       level: 2, spawnRadius: 5, dropTableSlug: 'bandit',       groupId: undefined },
-  { id: 'sp-spirit-1',  col: 50, row: 38, name: 'Forest Spirit',level: 3, spawnRadius: 6, dropTableSlug: 'forest-spirit',groupId: undefined },
-]
-
-const DUNGEON_DEPTHS_SPAWNS: SpawnPoint[] = [
-  // Close to entrance
-  { id: 'sp-dd-test-1', col: 47, row: 44, name: 'Skeleton',     level: 2, spawnRadius: 3, dropTableSlug: 'bandit',       groupId: undefined },
-  { id: 'sp-dd-test-2', col: 52, row: 45, name: 'Skeleton',     level: 2, spawnRadius: 3, dropTableSlug: 'bandit',       groupId: undefined },
-  { id: 'sp-dd-skel-1', col: 38, row: 42, name: 'Skeleton',     level: 2, spawnRadius: 5, dropTableSlug: 'bandit',       groupId: 'skels' },
-  { id: 'sp-dd-skel-2', col: 40, row: 44, name: 'Skeleton',     level: 2, spawnRadius: 5, dropTableSlug: 'bandit',       groupId: 'skels' },
-  { id: 'sp-dd-spider', col: 60, row: 48, name: 'Giant Spider', level: 3, spawnRadius: 6, dropTableSlug: 'forest-spirit',groupId: undefined },
-  { id: 'sp-dd-boss',   col: 50, row: 35, name: 'Dungeon Wraith',level: 4, spawnRadius: 4, dropTableSlug: 'forest-spirit',groupId: undefined },
-]
-
-const RUINED_CASTLE_SPAWNS: SpawnPoint[] = [
-  // Close to entrance
-  { id: 'sp-rc-test-1', col: 47, row: 43, name: 'Cursed Knight', level: 3, spawnRadius: 3, dropTableSlug: 'bandit',       groupId: undefined },
-  { id: 'sp-rc-test-2', col: 53, row: 44, name: 'Cursed Knight', level: 3, spawnRadius: 3, dropTableSlug: 'bandit',       groupId: undefined },
-  { id: 'sp-rc-guard-1',col: 36, row: 50, name: 'Cursed Knight', level: 3, spawnRadius: 5, dropTableSlug: 'bandit',       groupId: 'guards' },
-  { id: 'sp-rc-guard-2',col: 38, row: 48, name: 'Cursed Knight', level: 3, spawnRadius: 5, dropTableSlug: 'bandit',       groupId: 'guards' },
-  { id: 'sp-rc-wraith', col: 62, row: 52, name: 'Castle Wraith', level: 4, spawnRadius: 6, dropTableSlug: 'forest-spirit',groupId: undefined },
-  { id: 'sp-rc-boss',   col: 50, row: 35, name: 'Lich Lord',     level: 5, spawnRadius: 4, dropTableSlug: 'forest-spirit',groupId: undefined },
-]
-
-const BIOME_SPAWNS: Record<string, SpawnPoint[]> = {
-  'verdant-forest':  VERDANT_FOREST_SPAWNS,
-  'dungeon-depths':  DUNGEON_DEPTHS_SPAWNS,
-  'ruined-castle':   RUINED_CASTLE_SPAWNS,
-}
-
 const BIOME_WEATHER: Record<string, string> = {
   'verdant-forest': 'sunny',
   'dungeon-depths': 'foggy',
@@ -66,13 +28,7 @@ const BIOME_WEATHER: Record<string, string> = {
 // Radius within which a second enemy is pulled into the same encounter as a separate group
 const MULTI_GROUP_RADIUS = 8
 
-const SPAWN_SLUG_MAP = new Map<string, string>(
-  [...VERDANT_FOREST_SPAWNS, ...DUNGEON_DEPTHS_SPAWNS, ...RUINED_CASTLE_SPAWNS]
-    .map(sp => [sp.id, sp.dropTableSlug])
-)
-
-function makeBiomeSceneData(biomeId: string): SceneData {
-  const spawnPoints = BIOME_SPAWNS[biomeId] ?? []
+function makeBiomeSceneData(biomeId: string, spawnPoints: SpawnPoint[]): SceneData {
   return {
     buildings: [],
     layers: [{ id: 1, background: 'grass' }],
@@ -107,6 +63,7 @@ function isBiomeWalkable(pos: Position): boolean {
 export class BiomeRoom extends EncounterRoom {
   private _biomeId = 'verdant-forest'
   private _combatEnemySlugs: Map<string, string> = new Map()
+  private _spawnSlugMap: Map<string, string> = new Map()
 
   protected async onCombatWin(cs: CombatState): Promise<Record<string, unknown>> {
     const drops = await Promise.all(
@@ -140,7 +97,9 @@ export class BiomeRoom extends EncounterRoom {
 
   async onCreate(options: { biomeId?: string } = {}): Promise<void> {
     this._biomeId = options.biomeId ?? 'verdant-forest'
-    this._sceneData = makeBiomeSceneData(this._biomeId)
+    const spawns = await getBiomeSpawns(this._biomeId)
+    this._spawnSlugMap = new Map(spawns.map(sp => [sp.id, sp.dropTableSlug]))
+    this._sceneData = makeBiomeSceneData(this._biomeId, spawns)
     this.setState(new ExploreState())
 
     const pad = new DoorEntity()
@@ -281,12 +240,12 @@ export class BiomeRoom extends EncounterRoom {
       const nearData = this.enemyManager.getEnemy(nearId)
       if (!nearData) continue
       group1.push(makeEnemyActor(nearId, nearData.name, nearData, { x: nearData.x, y: nearData.y }))
-      const nearSlug = SPAWN_SLUG_MAP.get(nearId.replace(/^spawned-/, ''))
+      const nearSlug = this._spawnSlugMap.get(nearId.replace(/^spawned-/, ''))
       if (nearSlug) this._combatEnemySlugs.set(nearId, nearSlug)
     }
 
     // Track drop table slug for the triggering enemy
-    const slug = SPAWN_SLUG_MAP.get(encounter.enemyId.replace(/^spawned-/, ''))
+    const slug = this._spawnSlugMap.get(encounter.enemyId.replace(/^spawned-/, ''))
     if (slug) this._combatEnemySlugs.set(encounter.enemyId, slug)
 
     const enemyGroups = group1.length > 0 ? [group0, group1] : [group0]
