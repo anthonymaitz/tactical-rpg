@@ -44,6 +44,8 @@ export type LocationConfig = {
   showExtractPrompt?: boolean
   /** Hint text shown at bottom-left of the board. */
   hintText?: string
+  /** Inn only — called when the blacksmith comic panel completes so the wrapper can open the shop UI. */
+  onBlacksmithOpen?: () => void
 }
 
 // Open biome — no walls
@@ -424,6 +426,9 @@ export function LocationScreen(props: { config: LocationConfig }) {
     }
     if (ev?.type === 'npc' && ev.role === 'sage' && props.config.state.heroMeta().level >= 5) {
       setShowSecondaryModal(true)
+    }
+    if (ev?.type === 'npc' && ev.role === 'blacksmith') {
+      props.config.onBlacksmithOpen?.()
     }
     props.config.state.dismissInteraction()
   }

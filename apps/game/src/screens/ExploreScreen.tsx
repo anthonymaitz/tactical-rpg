@@ -1,8 +1,9 @@
 import type { Panel } from 'click-comics'
-import { createResource } from 'solid-js'
+import { createResource, createSignal, Show } from 'solid-js'
 import { createExploreRoom } from '../hooks/useExploreRoom'
 import { token, heroIds } from '../session'
 import { LocationScreen } from './LocationScreen'
+import { BlacksmithShop } from '../components/BlacksmithShop'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -12,7 +13,7 @@ const FALLBACK_NPC_PANELS: Record<string, Panel[]> = {
     { speaker: 'Innkeeper', text: 'Welcome back! Rest up — your heroes are fully restored.' },
   ],
   blacksmith: [
-    { speaker: 'Blacksmith', text: 'I can help you equip your heroes when gear equipping arrives.' },
+    { speaker: 'Blacksmith', text: 'Welcome to my forge! Browse my wares.' },
   ],
   sage_locked: [
     { speaker: 'Sage', text: 'Return when you\'ve proven yourself in battle. Secondary paths open at level 5.' },
@@ -37,10 +38,27 @@ async function fetchNpcDialogue(): Promise<Record<string, Panel[]>> {
 export function ExploreScreen() {
   const state = createExploreRoom(token, heroIds)
   const [npcPanels] = createResource(fetchNpcDialogue)
+  const [showBlacksmith, setShowBlacksmith] = createSignal(false)
+
+  // The first hero ID is the active hero in the inn
+  const firstHeroId = () => heroIds()[0] ?? null
+  const heroLevel = () => state.heroMeta().level
+
   return (
-    <LocationScreen config={{
-      state,
-      npcPanels: npcPanels() ?? FALLBACK_NPC_PANELS,
-    }} />
+    <>
+      <LocationScreen config={{
+        state,
+        npcPanels: npcPanels() ?? FALLBACK_NPC_PANELS,
+        onBlacksmithOpen: () => setShowBlacksmith(true),
+      }} />
+      <Show when={showBlacksmith()}>
+        <BlacksmithShop
+          token={token}
+          heroId={firstHeroId}
+          heroLevel={heroLevel}
+          onClose={() => setShowBlacksmith(false)}
+        />
+      </Show>
+    </>
   )
 }
