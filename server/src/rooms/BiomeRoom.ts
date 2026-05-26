@@ -1,23 +1,25 @@
 import type { Client } from '@colyseus/core'
-import { ExploreState, PlayerPosition, DoorEntity, EnemyEntity } from '../schemas/ExploreState'
+import { ExploreState, PlayerPosition, DoorEntity, EnemyEntity, NpcEntity } from '../schemas/ExploreState'
 import { EncounterRoom } from './EncounterRoom'
 import { EnemyManager } from './EnemyManager'
 import { processMove } from './logic/move-handler'
 import { inventoryService } from '../db/inventory-service'
 import { dropTableService } from '../db/drop-table-service'
 import { getBiomeSpawns } from '../db/biome-service'
-import type { SpawnPoint } from '../db/biome-service'
-import type { Position, SceneData, ActorState, CombatState, EncounterEvent, LootResult } from 'shared-types'
+import { chunkService } from '../db/chunk-service'
+import type { Position, ActorState, CombatState, EncounterEvent, LootResult } from 'shared-types'
 import { ENEMY_SLASH } from './combat-constants'
+import { assembleWorld } from './logic/world-assembly'
 
 interface MoveMessage {
   destination: Position
 }
 
 const BIOME_MOVE_SPEED = 10
-const BIOME_SIZE = 100
-const SPAWN_X = 50
-const SPAWN_Y = 50
+const WORLD_WIDTH = 200
+const WORLD_HEIGHT = 200
+const SPAWN_X = 100
+const SPAWN_Y = 100
 
 const BIOME_WEATHER: Record<string, string> = {
   'verdant-forest': 'sunny',
@@ -28,42 +30,29 @@ const BIOME_WEATHER: Record<string, string> = {
 // Radius within which a second enemy is pulled into the same encounter as a separate group
 const MULTI_GROUP_RADIUS = 8
 
-function makeBiomeSceneData(biomeId: string, spawnPoints: SpawnPoint[]): SceneData {
-  return {
-    buildings: [],
-    layers: [{ id: 1, background: 'grass' }],
-    props: [],
-    tokens: [
-      {
-        id: 'spawn-pad',
-        type: 'door',
-        col: SPAWN_X,
-        row: SPAWN_Y,
-        biomeId: 'inn',
-        label: 'Return to Inn',
-      },
-      ...spawnPoints.map(sp => ({
-        id: sp.id,
-        type: 'spawn-point' as const,
-        col: sp.col,
-        row: sp.row,
-        name: sp.name,
-        level: sp.level,
-        spawnRadius: sp.spawnRadius,
-      })),
-    ],
-    weather: BIOME_WEATHER[biomeId] ?? 'sunny',
+/** djb2 hash — maps biomeId string to a uint32 seed */
+function hashString(s: string): number {
+  let h = 5381
+  for (let i = 0; i < s.length; i++) {
+    h = (Math.imul(h, 33) ^ s.charCodeAt(i)) >>> 0
   }
-}
-
-function isBiomeWalkable(pos: Position): boolean {
-  return pos.x >= 0 && pos.x < BIOME_SIZE && pos.y >= 0 && pos.y < BIOME_SIZE
+  return h
 }
 
 export class BiomeRoom extends EncounterRoom {
   private _biomeId = 'verdant-forest'
   private _combatEnemySlugs: Map<string, string> = new Map()
   private _spawnSlugMap: Map<string, string> = new Map()
+  private _walls: number[][] = []
+
+  protected getCombatWalls(): number[][] {
+    return this._walls
+  }
+
+  private isBiomeWalkable(pos: Position): boolean {
+    if (pos.x < 0 || pos.x >= WORLD_WIDTH || pos.y < 0 || pos.y >= WORLD_HEIGHT) return false
+    return (this._walls[pos.y]?.[pos.x] ?? 0) === 0
+  }
 
   protected async onCombatWin(cs: CombatState): Promise<Record<string, unknown>> {
     const drops = await Promise.all(
@@ -97,11 +86,50 @@ export class BiomeRoom extends EncounterRoom {
 
   async onCreate(options: { biomeId?: string } = {}): Promise<void> {
     this._biomeId = options.biomeId ?? 'verdant-forest'
-    const spawns = await getBiomeSpawns(this._biomeId)
+
+    // Load spawn points (enemies) and scene chunks in parallel
+    const [spawns, chunks] = await Promise.all([
+      getBiomeSpawns(this._biomeId),
+      chunkService.listChunks(this._biomeId),
+    ])
+
     this._spawnSlugMap = new Map(spawns.map(sp => [sp.id, sp.dropTableSlug]))
-    this._sceneData = makeBiomeSceneData(this._biomeId, spawns)
+
+    // Assemble the world from chunks; falls back to empty open field if no chunks
+    const seed = hashString(this._biomeId)
+    const { walls, sceneData, placedChunks: _placedChunks } = assembleWorld(chunks, WORLD_WIDTH, WORLD_HEIGHT, seed)
+    this._walls = walls
+
+    // Build the combined SceneData: assembled chunk content + spawn-pad door + DB spawn points
+    const weather = BIOME_WEATHER[this._biomeId] ?? 'sunny'
+    this._sceneData = {
+      ...sceneData,
+      weather,
+      tokens: [
+        {
+          id: 'spawn-pad',
+          type: 'door' as const,
+          col: SPAWN_X,
+          row: SPAWN_Y,
+          biomeId: 'inn',
+          label: 'Return to Inn',
+        },
+        ...spawns.map(sp => ({
+          id: sp.id,
+          type: 'spawn-point' as const,
+          col: sp.col,
+          row: sp.row,
+          name: sp.name,
+          level: sp.level,
+          spawnRadius: sp.spawnRadius,
+        })),
+        ...sceneData.tokens,
+      ],
+    }
+
     this.setState(new ExploreState())
 
+    // Register spawn-pad door entity in state
     const pad = new DoorEntity()
     pad.id = 'spawn-pad'
     pad.biomeId = 'inn'
@@ -110,6 +138,21 @@ export class BiomeRoom extends EncounterRoom {
     pad.y = SPAWN_Y
     this.state.doors.push(pad)
 
+    // Register NPC entities from assembled chunk tokens
+    for (const token of sceneData.tokens) {
+      if (token.type === 'npc') {
+        const npc = new NpcEntity()
+        npc.id = token.id
+        npc.name = token.name ?? ''
+        npc.role = token.role ?? ''
+        npc.x = token.col
+        npc.y = token.row
+        npc.direction = token.direction ?? 's'
+        this.state.npcs.push(npc)
+      }
+    }
+
+    // EnemyManager reads spawn-point tokens from sceneData (DB spawns already embedded)
     this.enemyManager = new EnemyManager(
       this.state.enemies,
       (partial) => Object.assign(new EnemyEntity(), partial),
@@ -174,7 +217,7 @@ export class BiomeRoom extends EncounterRoom {
       currentPos: { x: current.x, y: current.y },
       destination: message.destination,
       maxSpeed: BIOME_MOVE_SPEED,
-      isWalkable: isBiomeWalkable,
+      isWalkable: (pos) => this.isBiomeWalkable(pos),
       npcs: [],
       doors: this.state.doors,
       isCombatActive: !!this._combat,
