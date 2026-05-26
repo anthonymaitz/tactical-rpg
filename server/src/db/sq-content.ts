@@ -22,6 +22,9 @@ export type SqAbility = {
   statusEffects: string[] | null
 }
 
+const abilityCache = new Map<string, SqAbility[]>()
+const secondaryCache = new Map<string, { inCombat: SqAbility | null; outOfCombat: SqAbility | null }>()
+
 export async function getSqContent(): Promise<SimpleQuestContent> {
   const [{ data: meta, error: metaErr }, { data: abilities, error: abilityErr }] = await Promise.all([
     supabase.from('sq_metadata').select('key, value'),
@@ -68,6 +71,7 @@ export async function getSqClass(classId: string): Promise<SqClass | null> {
 }
 
 export async function getSqClassAbilities(classId: string): Promise<SqAbility[]> {
+  if (abilityCache.has(classId)) return abilityCache.get(classId)!
   const { data, error } = await supabase
     .from('sq_abilities')
     .select('*')
@@ -75,7 +79,7 @@ export async function getSqClassAbilities(classId: string): Promise<SqAbility[]>
     .eq('context', 'inCombat')
     .order('id', { ascending: true })
   if (error) throw error
-  return (data ?? []).map((a) => ({
+  const result = (data ?? []).map((a) => ({
     id: a.id,
     title: a.title,
     body: a.body,
@@ -87,9 +91,12 @@ export async function getSqClassAbilities(classId: string): Promise<SqAbility[]>
     diceNotation: a.dice_notation,
     statusEffects: a.status_effects,
   }))
+  abilityCache.set(classId, result)
+  return result
 }
 
 export async function getSqClassSecondaryAbilities(classId: string): Promise<{ inCombat: SqAbility | null; outOfCombat: SqAbility | null }> {
+  if (secondaryCache.has(classId)) return secondaryCache.get(classId)!
   const { data, error } = await supabase
     .from('sq_abilities')
     .select('*')
@@ -109,10 +116,12 @@ export async function getSqClassSecondaryAbilities(classId: string): Promise<{ i
     diceNotation: a.dice_notation,
     statusEffects: a.status_effects,
   })) as SqAbility[]
-  return {
+  const result = {
     inCombat: abilities.find((a) => a.context === 'inCombat') ?? null,
     outOfCombat: abilities.find((a) => a.context === 'outOfCombat') ?? null,
   }
+  secondaryCache.set(classId, result)
+  return result
 }
 
 export async function listSqClasses(): Promise<Array<{ id: string; firstAbility: SqAbility | null }>> {
