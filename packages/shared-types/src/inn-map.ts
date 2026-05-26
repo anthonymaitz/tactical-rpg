@@ -1,6 +1,6 @@
 export type FacingDir = 'n' | 'e' | 's' | 'w'
 
-export type NpcRole = 'innkeeper' | 'blacksmith' | 'doorkeeper' | 'sage'
+export type NpcRole = 'innkeeper' | 'blacksmith' | 'sage'
 
 export type InnNpc = {
   id: string
@@ -73,12 +73,13 @@ export const THE_INN: InnMap = {
     [W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W,W],
   ],
   npcs: [
-    { id: 'innkeeper',         name: 'Innkeeper',        role: 'innkeeper',  x: 10, y: 2,  direction: 's' },
-    { id: 'blacksmith',        name: 'Blacksmith',        role: 'blacksmith', x: 4,  y: 7,  direction: 'e' },
-    { id: 'doorkeeper-forest', name: 'Forest Doorkeeper', role: 'doorkeeper', x: 16, y: 7,  direction: 'w' },
-    { id: 'sage',              name: 'Sage',              role: 'sage',       x: 7,  y: 2,  direction: 's' },
+    { id: 'innkeeper',  name: 'Innkeeper',  role: 'innkeeper',  x: 10, y: 2, direction: 's' },
+    { id: 'blacksmith', name: 'Blacksmith', role: 'blacksmith', x: 4,  y: 7, direction: 'e' },
+    { id: 'sage',       name: 'Sage',       role: 'sage',       x: 7,  y: 2, direction: 's' },
   ],
   doors: [
-    { id: 'door-forest', biomeId: 'verdant-forest', label: 'Verdant Forest', x: 16, y: 12 },
+    { id: 'door-forest',  biomeId: 'verdant-forest',  label: 'Verdant Forest',  x: 4,  y: 12 },
+    { id: 'door-dungeon', biomeId: 'dungeon-depths',   label: 'Dungeon Depths',  x: 10, y: 12 },
+    { id: 'door-castle',  biomeId: 'ruined-castle',    label: 'Ruined Castle',   x: 16, y: 12 },
   ],
 }

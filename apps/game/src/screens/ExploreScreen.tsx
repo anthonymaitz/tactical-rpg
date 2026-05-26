@@ -23,9 +23,6 @@ const NPC_PANELS: Record<string, Panel[]> = {
   blacksmith: [
     { speaker: 'Blacksmith', text: 'I can help you equip your heroes when gear equipping arrives.' },
   ],
-  doorkeeper: [
-    { speaker: 'Doorkeeper', text: 'Ready to venture out? Choose your party and I\'ll open the way.' },
-  ],
   sage_locked: [
     { speaker: 'Sage', text: 'Return when you\'ve proven yourself in battle. Secondary paths open at level 5.' },
   ],
@@ -42,10 +39,6 @@ const BIOME_NAMES: Record<string, string> = {
   'dungeon-depths': 'Dungeon Depths',
   'ruined-castle': 'Ruined Castle',
 }
-
-const DOOR_PANELS: Panel[] = [
-  { speaker: 'The Door', text: 'Biome exploration is coming in the next update.' },
-]
 
 const SIDEBAR_WIDTH = 380
 
@@ -298,10 +291,12 @@ export function ExploreScreen() {
     const tokens: ExploreToken[] = [
       ...Object.entries(state.players()).map(([id, p]) => {
         const isMe = id === myId
+        // Use hero UUID for own token so the combat bystander filter (which keys on hero ID) removes it correctly
+        const tokenId = isMe ? (partyIds[0] ?? id) : id
         return {
           x: p.x, y: p.y,
           type: 'player' as const,
-          id,
+          id: tokenId,
           label: id,
           isMe,
           direction: p.direction,
@@ -357,14 +352,17 @@ export function ExploreScreen() {
       }
       return NPC_PANELS[ev.role] ?? null
     }
-    if (ev.type === 'door') return DOOR_PANELS
+    if (ev.type === 'door' && ev.biomeId) {
+      const name = BIOME_NAMES[ev.biomeId] ?? ev.biomeId
+      return [{ speaker: 'The Door', text: `Ready to venture into ${name}? Choose your party and step through.` }]
+    }
     return null
   }
 
   function handleInteractionComplete() {
     const ev = state.interaction()
     if (ev?.type === 'npc' && ev.role === 'innkeeper') state.rest()
-    if (ev?.type === 'npc' && ev.role === 'doorkeeper' && ev.biomeId) {
+    if (ev?.type === 'door' && ev.biomeId) {
       void heroRoster.refresh()
       setPartyPickerBiomeId(ev.biomeId)
     }
@@ -605,7 +603,7 @@ export function ExploreScreen() {
               />
             </Show>
 
-            {/* Party picker — shown after doorkeeper comic completes */}
+            {/* Party picker — shown after door comic completes */}
             <Show when={partyPickerBiomeId()}>
               {(biomeId) => (
                 <PartyPicker

@@ -1,15 +1,12 @@
 import type { Client } from '@colyseus/core'
 import { ExploreState, PlayerPosition, DoorEntity, EnemyEntity } from '../schemas/ExploreState'
-import { BaseRoom } from './BaseRoom'
+import { EncounterRoom } from './EncounterRoom'
 import { EnemyManager } from './EnemyManager'
-import { InPlaceCombatEngine } from './InPlaceCombatEngine'
 import { isValidMove, isAdjacent, getMovementDirection } from './logic/explore-logic'
-import { buildPartyActors, getActivePartyActorId } from './logic/party-combat'
 import { heroService } from '../db/hero-service'
 import { inventoryService } from '../db/inventory-service'
 import { dropTableService } from '../db/drop-table-service'
-import { supabase } from '../db/supabase'
-import type { Position, SceneData, EncounterEvent, LootResult } from 'shared-types'
+import type { Position, SceneData, ActorState, CombatState, EncounterEvent, LootResult } from 'shared-types'
 import { weaponDamageBonus, ENEMY_SLASH } from './combat-constants'
 
 interface MoveMessage {
@@ -20,27 +17,63 @@ const BIOME_MOVE_SPEED = 10
 const BIOME_SIZE = 100
 const SPAWN_X = 50
 const SPAWN_Y = 50
-const RECOVERY_HOURS = 8
 
-// Hardcoded spawn points for Verdant Forest MVP — scattered around the spawn pad
-const VERDANT_FOREST_SPAWNS = [
+type SpawnPoint = { id: string; col: number; row: number; name: string; level: number; spawnRadius: number; dropTableSlug: string; groupId: string | undefined }
+
+const VERDANT_FOREST_SPAWNS: SpawnPoint[] = [
+  // Close to entrance — easy to find for testing
+  { id: 'sp-vf-test-1', col: 46, row: 44, name: 'Wolf',         level: 1, spawnRadius: 3, dropTableSlug: 'wolf',         groupId: undefined },
+  { id: 'sp-vf-test-2', col: 53, row: 45, name: 'Wolf',         level: 1, spawnRadius: 3, dropTableSlug: 'wolf',         groupId: undefined },
   // Wolf pack: two wolves close together — forms two enemy groups in one encounter
-  { id: 'sp-wolf-1',   col: 42, row: 42, name: 'Wolf',         level: 1, spawnRadius: 4, dropTableSlug: 'wolf',         groupId: 'wolves' },
-  { id: 'sp-wolf-2',   col: 44, row: 43, name: 'Wolf',         level: 1, spawnRadius: 4, dropTableSlug: 'wolf',         groupId: 'wolves' },
-  { id: 'sp-bandit-1', col: 35, row: 50, name: 'Bandit',       level: 2, spawnRadius: 5, dropTableSlug: 'bandit',       groupId: undefined },
-  { id: 'sp-bandit-2', col: 62, row: 55, name: 'Bandit',       level: 2, spawnRadius: 5, dropTableSlug: 'bandit',       groupId: undefined },
-  { id: 'sp-spirit-1', col: 50, row: 38, name: 'Forest Spirit',level: 3, spawnRadius: 6, dropTableSlug: 'forest-spirit',groupId: undefined },
+  { id: 'sp-wolf-1',    col: 42, row: 42, name: 'Wolf',         level: 1, spawnRadius: 4, dropTableSlug: 'wolf',         groupId: 'wolves' },
+  { id: 'sp-wolf-2',    col: 44, row: 43, name: 'Wolf',         level: 1, spawnRadius: 4, dropTableSlug: 'wolf',         groupId: 'wolves' },
+  { id: 'sp-bandit-1',  col: 35, row: 50, name: 'Bandit',       level: 2, spawnRadius: 5, dropTableSlug: 'bandit',       groupId: undefined },
+  { id: 'sp-bandit-2',  col: 62, row: 55, name: 'Bandit',       level: 2, spawnRadius: 5, dropTableSlug: 'bandit',       groupId: undefined },
+  { id: 'sp-spirit-1',  col: 50, row: 38, name: 'Forest Spirit',level: 3, spawnRadius: 6, dropTableSlug: 'forest-spirit',groupId: undefined },
 ]
+
+const DUNGEON_DEPTHS_SPAWNS: SpawnPoint[] = [
+  // Close to entrance
+  { id: 'sp-dd-test-1', col: 47, row: 44, name: 'Skeleton',     level: 2, spawnRadius: 3, dropTableSlug: 'bandit',       groupId: undefined },
+  { id: 'sp-dd-test-2', col: 52, row: 45, name: 'Skeleton',     level: 2, spawnRadius: 3, dropTableSlug: 'bandit',       groupId: undefined },
+  { id: 'sp-dd-skel-1', col: 38, row: 42, name: 'Skeleton',     level: 2, spawnRadius: 5, dropTableSlug: 'bandit',       groupId: 'skels' },
+  { id: 'sp-dd-skel-2', col: 40, row: 44, name: 'Skeleton',     level: 2, spawnRadius: 5, dropTableSlug: 'bandit',       groupId: 'skels' },
+  { id: 'sp-dd-spider', col: 60, row: 48, name: 'Giant Spider', level: 3, spawnRadius: 6, dropTableSlug: 'forest-spirit',groupId: undefined },
+  { id: 'sp-dd-boss',   col: 50, row: 35, name: 'Dungeon Wraith',level: 4, spawnRadius: 4, dropTableSlug: 'forest-spirit',groupId: undefined },
+]
+
+const RUINED_CASTLE_SPAWNS: SpawnPoint[] = [
+  // Close to entrance
+  { id: 'sp-rc-test-1', col: 47, row: 43, name: 'Cursed Knight', level: 3, spawnRadius: 3, dropTableSlug: 'bandit',       groupId: undefined },
+  { id: 'sp-rc-test-2', col: 53, row: 44, name: 'Cursed Knight', level: 3, spawnRadius: 3, dropTableSlug: 'bandit',       groupId: undefined },
+  { id: 'sp-rc-guard-1',col: 36, row: 50, name: 'Cursed Knight', level: 3, spawnRadius: 5, dropTableSlug: 'bandit',       groupId: 'guards' },
+  { id: 'sp-rc-guard-2',col: 38, row: 48, name: 'Cursed Knight', level: 3, spawnRadius: 5, dropTableSlug: 'bandit',       groupId: 'guards' },
+  { id: 'sp-rc-wraith', col: 62, row: 52, name: 'Castle Wraith', level: 4, spawnRadius: 6, dropTableSlug: 'forest-spirit',groupId: undefined },
+  { id: 'sp-rc-boss',   col: 50, row: 35, name: 'Lich Lord',     level: 5, spawnRadius: 4, dropTableSlug: 'forest-spirit',groupId: undefined },
+]
+
+const BIOME_SPAWNS: Record<string, SpawnPoint[]> = {
+  'verdant-forest':  VERDANT_FOREST_SPAWNS,
+  'dungeon-depths':  DUNGEON_DEPTHS_SPAWNS,
+  'ruined-castle':   RUINED_CASTLE_SPAWNS,
+}
+
+const BIOME_WEATHER: Record<string, string> = {
+  'verdant-forest': 'sunny',
+  'dungeon-depths': 'foggy',
+  'ruined-castle':  'stormy',
+}
 
 // Radius within which a second enemy is pulled into the same encounter as a separate group
 const MULTI_GROUP_RADIUS = 8
 
 const SPAWN_SLUG_MAP = new Map<string, string>(
-  VERDANT_FOREST_SPAWNS.map(sp => [sp.id, sp.dropTableSlug])
+  [...VERDANT_FOREST_SPAWNS, ...DUNGEON_DEPTHS_SPAWNS, ...RUINED_CASTLE_SPAWNS]
+    .map(sp => [sp.id, sp.dropTableSlug])
 )
 
 function makeBiomeSceneData(biomeId: string): SceneData {
-  const spawnPoints = biomeId === 'verdant-forest' ? VERDANT_FOREST_SPAWNS : []
+  const spawnPoints = BIOME_SPAWNS[biomeId] ?? []
   return {
     buildings: [],
     layers: [{ id: 1, background: 'grass' }],
@@ -64,7 +97,7 @@ function makeBiomeSceneData(biomeId: string): SceneData {
         spawnRadius: sp.spawnRadius,
       })),
     ],
-    weather: 'sunny',
+    weather: BIOME_WEATHER[biomeId] ?? 'sunny',
   }
 }
 
@@ -72,14 +105,40 @@ function isBiomeWalkable(pos: Position): boolean {
   return pos.x >= 0 && pos.x < BIOME_SIZE && pos.y >= 0 && pos.y < BIOME_SIZE
 }
 
-export class BiomeRoom extends BaseRoom<ExploreState> {
+export class BiomeRoom extends EncounterRoom {
   private _sceneData!: SceneData
   private _biomeId = 'verdant-forest'
-  private enemyManager!: EnemyManager
-  private _combat: InPlaceCombatEngine | null = null
-  private _combatParticipants: Set<string> = new Set()
-  private _combatHeroActorIds: Map<string, string[]> = new Map()
   private _combatEnemySlugs: Map<string, string> = new Map()
+
+  protected async onCombatWin(cs: CombatState): Promise<Record<string, unknown>> {
+    const drops = await Promise.all(
+      cs.activeEnemyIds.map((enemyId) => {
+        const slug = this._combatEnemySlugs.get(enemyId)
+        return slug ? dropTableService.rollDrops(slug) : null
+      })
+    )
+    const loot = drops.filter(Boolean).reduce<LootResult>(
+      (acc, d) => ({
+        gold: acc.gold + d!.gold,
+        healthPotions: acc.healthPotions + d!.healthPotions,
+        starFragments: acc.starFragments + d!.starFragments,
+        decorShards: acc.decorShards + d!.decorShards,
+        builderPropIds: [...acc.builderPropIds, ...d!.builderPropIds],
+      }),
+      { gold: 0, healthPotions: 0, starFragments: 0, decorShards: 0, builderPropIds: [] }
+    )
+    await Promise.all(
+      [...this._combatHeroActorIds.entries()].map(async ([sessionId]) => {
+        const userData = this.clients.find(c => c.sessionId === sessionId)?.userData as { userId?: string } | undefined
+        if (userData?.userId) await inventoryService.addLoot(userData.userId, loot)
+      })
+    )
+    return { loot }
+  }
+
+  protected onCombatCleanup(): void {
+    this._combatEnemySlugs.clear()
+  }
 
   async onCreate(options: { biomeId?: string } = {}): Promise<void> {
     this._biomeId = options.biomeId ?? 'verdant-forest'
@@ -119,21 +178,7 @@ export class BiomeRoom extends BaseRoom<ExploreState> {
       await this.handleMove(client, message)
     })
 
-    this.onMessage<{ action: import('shared-types').Action }>('PLAYER_ACTION', (client, msg) => {
-      this.handleCombatAction(client, msg.action)
-    })
-
-    this.onMessage('END_TURN', (client) => {
-      this.handleEndTurn(client)
-    })
-
-    this.onMessage('JOIN_COMBAT', async (client) => {
-      await this.handleJoinCombat(client)
-    })
-
-    this.onMessage('USE_POTION', async (client) => {
-      await this.handleUsePotion(client)
-    })
+    this.registerCombatMessageHandlers()
 
     this.onMessage<{ direction: string }>('FACE', (client, message) => {
       const player = this.state.players.get(client.sessionId)
@@ -234,41 +279,16 @@ export class BiomeRoom extends BaseRoom<ExploreState> {
         await this.startCombat(client, encounter)
         return
       }
-    } else if (!this._combatParticipants.has(client.sessionId)) {
-      const cs = this._combat.getCombatState()
-      const combatEnemies = cs.activeEnemyIds.map(id => cs.actors[id]).filter(Boolean)
-      const pos = { x: current.x, y: current.y }
-      const autoJoin = combatEnemies.some(e =>
-        Math.abs(e.position.x - pos.x) + Math.abs(e.position.y - pos.y) === 1
-      )
-      if (autoJoin) {
-        await this.handleJoinCombat(client)
-      } else {
-        const allActors = Object.values(cs.actors)
-        const nearby = allActors.some(a =>
-          Math.abs(a.position.x - pos.x) + Math.abs(a.position.y - pos.y) <= 4
-        )
-        if (nearby) client.send('COMBAT_JOIN_OFFER')
-      }
+    } else {
+      this.checkCombatProximity(client, { x: current.x, y: current.y })
     }
   }
 
   private async startCombat(client: Client, encounter: EncounterEvent): Promise<void> {
-    const userData = client.userData as { heroIds?: string[] }
-    const heroIds = userData?.heroIds ?? []
-    if (heroIds.length === 0) return
-
-    const current = this.state.players.get(client.sessionId)
-    if (!current) return
-
-    const heroActors = await buildPartyActors(heroIds, { x: current.x, y: current.y })
-    if (heroActors.length === 0) return
-
-    // Build enemy groups: triggering enemy is group-0, plus any nearby enemies as additional groups
     const enemyData = this.enemyManager.getEnemy(encounter.enemyId)
     if (!enemyData) return
 
-    const makeEnemyActor = (id: string, name: string, data: typeof enemyData, pos: { x: number; y: number }) => ({
+    const makeEnemyActor = (id: string, name: string, data: typeof enemyData, pos: { x: number; y: number }): ActorState => ({
       id,
       name,
       personality: 'wild' as const,
@@ -280,219 +300,31 @@ export class BiomeRoom extends BaseRoom<ExploreState> {
       maxEnergy: 10,
       speed: 3,
       position: pos,
-      statusEffects: [] as string[],
+      statusEffects: [],
       isNPC: true,
       abilities: [ENEMY_SLASH],
     })
 
     const group0 = [makeEnemyActor(encounter.enemyId, encounter.enemyName, enemyData, { x: encounter.x, y: encounter.y })]
 
-    // Pull nearby enemies (within MULTI_GROUP_RADIUS) in as a second group
+    // Pull nearby enemies (within MULTI_GROUP_RADIUS) into a second group
     const nearbyEnemyIds = this.enemyManager.getEnemiesNear(
       encounter.x, encounter.y, MULTI_GROUP_RADIUS, encounter.enemyId
     )
-    const group1: typeof group0 = []
+    const group1: ActorState[] = []
     for (const nearId of nearbyEnemyIds) {
       const nearData = this.enemyManager.getEnemy(nearId)
       if (!nearData) continue
       group1.push(makeEnemyActor(nearId, nearData.name, nearData, { x: nearData.x, y: nearData.y }))
-      // Track loot for this enemy
-      const nearSpawnId = nearId.replace(/^spawned-/, '')
-      const nearSlug = SPAWN_SLUG_MAP.get(nearSpawnId)
+      const nearSlug = SPAWN_SLUG_MAP.get(nearId.replace(/^spawned-/, ''))
       if (nearSlug) this._combatEnemySlugs.set(nearId, nearSlug)
     }
 
-    const enemyGroups = group1.length > 0 ? [group0, group1] : [group0]
-
-    client.send('ENCOUNTER', encounter)
-
-    // Open biome — no walls for combat
-    this._combat = new InPlaceCombatEngine(heroActors, enemyGroups, [], enemyData.level, 'biome')
-    this._combatParticipants.add(client.sessionId)
-    this._combatHeroActorIds.set(client.sessionId, heroActors.map((a) => a.id))
-
-    // Track drop table slug for triggering enemy
-    const spawnPointId = encounter.enemyId.replace(/^spawned-/, '')
-    const slug = SPAWN_SLUG_MAP.get(spawnPointId)
+    // Track drop table slug for the triggering enemy
+    const slug = SPAWN_SLUG_MAP.get(encounter.enemyId.replace(/^spawned-/, ''))
     if (slug) this._combatEnemySlugs.set(encounter.enemyId, slug)
 
-    const initialState = this._combat.getCombatState()
-    this.broadcast('COMBAT_START', initialState)
-
-    // If enemies go first, auto-process their phases now
-    if (!initialState.isPlayerTurn) {
-      const npcResults = this._combat.endPlayerPhase()
-      this.broadcastNpcResults(npcResults)
-      if (this._combat.isOver()) { this.endCombat(); return }
-      this.broadcast('COMBAT_STATE', this._combat.getCombatState())
-    }
-  }
-
-  private async handleJoinCombat(client: Client): Promise<void> {
-    if (!this._combat) return
-    if (this._combatParticipants.has(client.sessionId)) return
-
-    const userData = client.userData as { heroIds?: string[] }
-    const heroIds = userData?.heroIds ?? []
-    if (heroIds.length === 0) return
-
-    const current = this.state.players.get(client.sessionId)
-    if (!current) return
-
-    const joinActors = await buildPartyActors(heroIds, { x: current.x, y: current.y })
-    if (joinActors.length === 0) return
-
-    for (const actor of joinActors) this._combat!.addActor(actor)
-
-    this._combatParticipants.add(client.sessionId)
-    this._combatHeroActorIds.set(client.sessionId, joinActors.map((a) => a.id))
-    this.broadcast('COMBAT_STATE', this._combat.getCombatState())
-  }
-
-  private handleCombatAction(client: Client, action: import('shared-types').Action): void {
-    if (!this._combat) return
-    const sessionHeroIds = this._combatHeroActorIds.get(client.sessionId) ?? []
-    const cs = this._combat.getCombatState()
-    const actorId = getActivePartyActorId(sessionHeroIds, cs, action.actorId)
-    if (!actorId) return
-
-    let actionResult: import('shared-types').ActionResult
-    try {
-      actionResult = this._combat.handlePlayerAction(actorId, action)
-    } catch (e) {
-      client.send('ACTION_REJECTED', { reason: e instanceof Error ? e.message : 'invalid action' })
-      return
-    }
-
-    if (this._combat.isOver()) { this.endCombat(); return }
-    this.broadcast('ACTION_RESULT', actionResult)
-    this.broadcast('COMBAT_STATE', this._combat.getCombatState())
-  }
-
-  private handleEndTurn(client: Client): void {
-    if (!this._combat) return
-    const sessionHeroIds = this._combatHeroActorIds.get(client.sessionId) ?? []
-    const cs = this._combat.getCombatState()
-    if (!getActivePartyActorId(sessionHeroIds, cs)) return
-    this.runEndTurn()
-  }
-
-  private runEndTurn(): void {
-    if (!this._combat) return
-    const npcResults = this._combat.endPlayerPhase()
-    this.broadcastNpcResults(npcResults)
-    if (this._combat.isOver()) { this.endCombat(); return }
-    this.broadcast('COMBAT_STATE', this._combat.getCombatState())
-  }
-
-  private broadcastNpcResults(results: import('shared-types').ActionResult[]): void {
-    for (const r of results) {
-      if (Object.keys(r.hpDeltas).length > 0) this.broadcast('ACTION_RESULT', r)
-    }
-  }
-
-  private async handleUsePotion(client: Client): Promise<void> {
-    if (!this._combat) return
-    const sessionHeroIds = this._combatHeroActorIds.get(client.sessionId) ?? []
-    const cs = this._combat.getCombatState()
-    const heroId = getActivePartyActorId(sessionHeroIds, cs)
-    if (!heroId) {
-      client.send('ACTION_REJECTED', { reason: 'not_your_turn' })
-      return
-    }
-
-    const actor = cs.actors[heroId]
-    if (!actor) return
-    if (actor.energy < 1) {
-      client.send('ACTION_REJECTED', { reason: 'insufficient_energy' })
-      return
-    }
-
-    const heroInv = await inventoryService.getHeroInventory(heroId)
-    if (heroInv.healthPotions <= 0) {
-      client.send('ACTION_REJECTED', { reason: 'no_potions' })
-      return
-    }
-
-    const healAmount = actor.maxHp - actor.hp
-    this._combat.applyHeal(heroId, healAmount, 1)
-    await inventoryService.useHeroPotion(heroId)
-    this.broadcast('COMBAT_STATE', this._combat.getCombatState())
-  }
-
-  private async endCombat(): Promise<void> {
-    if (!this._combat) return
-    const winningSide = this._combat.winningSide()
-    const cs = this._combat.getCombatState()
-
-    if (winningSide === 'players') {
-      for (const enemyId of cs.activeEnemyIds) {
-        if (this.state.enemies.has(enemyId)) this.state.enemies.delete(enemyId)
-        this.enemyManager.removeEnemy(enemyId)
-      }
-
-      // Roll loot drops from all defeated enemies, then reduce into a single result
-      const drops = await Promise.all(
-        cs.activeEnemyIds.map((enemyId) => {
-          const slug = this._combatEnemySlugs.get(enemyId)
-          return slug ? dropTableService.rollDrops(slug) : null
-        })
-      )
-      const loot = drops.filter(Boolean).reduce<LootResult>(
-        (acc, d) => ({
-          gold: acc.gold + d!.gold,
-          healthPotions: acc.healthPotions + d!.healthPotions,
-          starFragments: acc.starFragments + d!.starFragments,
-          decorShards: acc.decorShards + d!.decorShards,
-          builderPropIds: [...acc.builderPropIds, ...d!.builderPropIds],
-        }),
-        { gold: 0, healthPotions: 0, starFragments: 0, decorShards: 0, builderPropIds: [] }
-      )
-
-      // Award loot and save HP for all hero participants
-      const heroActors = Object.values(cs.actors).filter(a => !a.isNPC)
-      await Promise.all([
-        ...heroActors.map(a => heroService.updateCurrentHp(a.id, a.hp)),
-        ...[...this._combatHeroActorIds.entries()].map(async ([sessionId, _heroId]) => {
-          const userData = this.clients.find(c => c.sessionId === sessionId)?.userData as { userId?: string } | undefined
-          if (userData?.userId) {
-            await inventoryService.addLoot(userData.userId, loot)
-          }
-        }),
-      ])
-
-      this.broadcast('COMBAT_END', { result: 'win', loot })
-    } else if (winningSide === null) {
-      this.broadcast('COMBAT_END', { result: 'cancelled' })
-    } else {
-      const recoveryEndsAt = new Date(Date.now() + RECOVERY_HOURS * 60 * 60 * 1000).toISOString()
-      const ghostHeroes = Object.values(cs.actors).filter(a => !a.isNPC && a.isGhost)
-      await Promise.all(
-        ghostHeroes.map(hero =>
-          supabase
-            .from('heroes')
-            .update({ recovery_ends_at: recoveryEndsAt })
-            .eq('id', hero.id)
-        )
-      )
-      this.broadcast('COMBAT_END', { result: 'lose', recoveryEndsAt })
-    }
-
-    // Sync explore positions to final combat positions so heroes don't snap back
-    for (const [sessionId, heroIds] of this._combatHeroActorIds.entries()) {
-      const leadActor = cs.actors[heroIds[0]]
-      if (leadActor) {
-        const pos = this.state.players.get(sessionId)
-        if (pos) {
-          pos.x = leadActor.position.x
-          pos.y = leadActor.position.y
-        }
-      }
-    }
-
-    this._combat = null
-    this._combatParticipants.clear()
-    this._combatHeroActorIds.clear()
-    this._combatEnemySlugs.clear()
+    const enemyGroups = group1.length > 0 ? [group0, group1] : [group0]
+    await this.beginCombat(client, encounter, enemyGroups, enemyData.level)
   }
 }

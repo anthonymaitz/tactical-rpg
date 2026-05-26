@@ -1,4 +1,5 @@
 import { heroService } from '../../db/hero-service'
+import { getSqClassAbilities, getSqClassSecondaryAbilities } from '../../db/sq-content'
 import { weaponDamageBonus } from '../combat-constants'
 import type { ActorState, Position } from 'shared-types'
 
@@ -7,6 +8,25 @@ export async function buildPartyActors(heroIds: string[], origin: Position): Pro
   const heroes = (await Promise.all(heroIds.map((id) => heroService.getHero(id)))).filter(
     (h): h is NonNullable<typeof h> => h !== null,
   )
+
+  // Fetch fresh ability definitions per class so we always use current energy costs from sq_abilities,
+  // not the potentially-stale values stored in the hero's abilities JSONB column.
+  const classDefs = await Promise.all(
+    [...new Set(heroes.map((h) => h.characterClass))].map(async (cls) => {
+      const [primary, secondary] = await Promise.all([
+        getSqClassAbilities(cls),
+        getSqClassSecondaryAbilities(cls),
+      ])
+      return { cls, primary, secondary }
+    }),
+  )
+  const energyCostByAbilityId = new Map<string, number>()
+  for (const { primary, secondary } of classDefs) {
+    for (const a of primary) energyCostByAbilityId.set(a.id, a.energyCost ?? 1)
+    if (secondary.inCombat) energyCostByAbilityId.set(secondary.inCombat.id, secondary.inCombat.energyCost ?? 1)
+    if (secondary.outOfCombat) energyCostByAbilityId.set(secondary.outOfCombat.id, secondary.outOfCombat.energyCost ?? 1)
+  }
+
   return heroes.map((hero, i) => ({
     id: hero.id,
     name: hero.name,
@@ -21,7 +41,10 @@ export async function buildPartyActors(heroIds: string[], origin: Position): Pro
     position: { x: origin.x, y: origin.y + i },
     statusEffects: [],
     isNPC: false,
-    abilities: [...hero.abilities, ...hero.secondaryAbilities],
+    abilities: [...hero.abilities, ...hero.secondaryAbilities].map((a) => ({
+      ...a,
+      energyCost: energyCostByAbilityId.get(a.id) ?? a.energyCost,
+    })),
     damageBonus: weaponDamageBonus(hero.gear?.weapon),
   }))
 }

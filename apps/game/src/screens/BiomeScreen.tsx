@@ -260,10 +260,11 @@ export function BiomeScreen() {
     const tokens: ExploreToken[] = [
       ...Object.entries(state.players()).map(([id, p]) => {
         const isMe = id === myId
+        const tokenId = isMe ? (partyIds[0] ?? id) : id
         return {
           x: p.x, y: p.y,
           type: 'player' as const,
-          id,
+          id: tokenId,
           label: id,
           isMe,
           direction: p.direction,

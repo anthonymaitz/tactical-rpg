@@ -59,6 +59,19 @@ Each biome is one large procedural map — not floor-based. Players teleport in 
 
 Additional biomes unlocked via the Dungeon upgrade tree.
 
+### Terrain Effects
+
+Biome map tiles can carry terrain modifiers that apply during combat encounters on that tile. This gives player-built shop locations and encounter placement meaningful tactical variety.
+
+| Terrain | Effect |
+| ------- | ------ |
+| **High Ground** | +1 to attack roll dice result for ranged abilities; enemies must spend +1 movement to reach |
+| **Difficult Terrain** | Costs 2 movement points to enter instead of 1 (mud, rubble, shallow water) |
+| **Cover** | Reduces incoming ranged damage by 1 die step (d8 → d6) |
+| **Hazard** | Deals 1d4 damage to any actor who ends their turn on it (fire, poison pools, spike traps) |
+
+Terrain is authored per-tile in the map data and reflected in the `ExploreMap` tile type. During combat, the rules engine checks terrain at each actor's position when resolving movement and attacks.
+
 ---
 
 ## Events & Structures
@@ -86,6 +99,7 @@ Each hero has:
 - **Class** — determines ability set and die size (Fighter d8, Mage d6, Rogue d8, Cleric d6, etc.)
 - **Personality** — shapes dialogue and passive traits
 - **Die Size** — core mechanic inherited from SimpleQuest rules
+- **Secondary Class** — unlocked at level 5. A hero can train in one secondary class, making one ability from that class available to equip in their loadout. Set at the Sage NPC in The Inn. Enables hybrid builds (e.g. Fighter/Cleric can equip a self-heal; Rogue/Mage can equip a blink ability).
 
 The SimpleQuest web component (`<simple-quest>`) renders the hero card UI: stats, abilities, energy. This is the source of truth for hero display — no custom hero card UI is built.
 
@@ -101,9 +115,11 @@ Gear is equipped in The Inn via the Blacksmith NPC.
 
 ### Progression
 - **XP** earned from combat encounters and discoveries (treasure, shrines, boss kills)
-- **Level up** → gain max HP and unlock/upgrade one ability
+- **Level up** → gain max HP and unlock/upgrade one ability from the level-up picker
+- **Class XP** — separate from hero XP. Using an ability in combat earns Class XP for that ability's class. Accumulated Class XP expands what appears in the level-up picker — heroes who use sword abilities heavily will have higher-tier sword abilities available to unlock. Encourages playing to a hero's strengths.
 - Gear drops from combat, treasure caches, and boss encounters
 - **New heroes** discovered via hero scrolls (treasure or boss drops) — added to roster permanently
+- **Discovery Guarantee** — after completing 5 consecutive runs without finding a hero scroll drop, the next boss encounter guarantees one. Tracked server-side per player. Prevents long stretches of no roster growth.
 
 ### Recovery Timers
 When a hero is knocked out during combat they cannot participate in runs until recovered.
@@ -184,7 +200,18 @@ Players build shops using the Playsets builder tool and publish them into the sh
 
 **Builder elements** are drops found while exploring biome maps (chests, boss kills, shrines). Elements range in quality tier — common elements enable basic shops; rare elements unlock better inventory budgets and visual variety.
 
-Players open the Playsets builder from The Inn and assemble a shop: lay out the space, place a shopkeeper (pre-written dialogue, no player-authored text), and stock the inventory within their current **budget tier**.
+Players open the Playsets builder from The Inn and assemble a shop: lay out the space, place a shopkeeper (pre-written dialogue, no player-authored text), choose a **shop type**, and stock the inventory within their current **budget tier**.
+
+#### Shop Types
+
+| Type | Stock | Notes |
+| ---- | ----- | ----- |
+| **Armory** | Gear (weapons, armor, trinkets) | Default type. Inventory quality gated by budget tier. |
+| **Apothecary** | Consumables (recall items, potions) | Budget tier gates consumable rarity. |
+| **Mercenary Hall** | Hero scrolls | Stocking hero scrolls instead of gear. Visiting players spend gold to draw a scroll. Scroll tier (common → rare) determined by builder's budget tier and available scroll drops in their inventory. |
+| **Training Hall** | Training tomes | Tomes grant a hero a secondary class slot use (see Hero System). Budget tier gates which classes are available. |
+
+A shop's type is set at creation time and cannot be changed after publishing. The shop's visual theming in the Playsets builder adapts to match the type (pre-authored asset sets per type).
 
 **Budget tiers** unlock as the player's reputation score grows:
 

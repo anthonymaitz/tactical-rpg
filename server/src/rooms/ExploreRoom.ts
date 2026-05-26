@@ -1,12 +1,9 @@
 import type { Client } from '@colyseus/core'
 import { ExploreState, PlayerPosition, NpcEntity, DoorEntity, EnemyEntity } from '../schemas/ExploreState'
-import { BaseRoom } from './BaseRoom'
 import { EnemyManager } from './EnemyManager'
-import { InPlaceCombatEngine } from './InPlaceCombatEngine'
+import { EncounterRoom } from './EncounterRoom'
 import { isValidMove, isWalkable, isAdjacent, getFrontCell, getMovementDirection } from './logic/explore-logic'
-import { buildPartyActors, getActivePartyActorId } from './logic/party-combat'
 import { heroService } from '../db/hero-service'
-import { CLASS_XP_PER_COMBAT_USE } from '../db/hero-logic'
 import { supabase } from '../db/supabase'
 import { THE_INN, generateSceneFromInn } from 'shared-types'
 import type { Position, SceneData, ActorState, EncounterEvent } from 'shared-types'
@@ -18,14 +15,11 @@ interface MoveMessage {
 
 const INN_MOVE_SPEED = 10
 const SCENE_SLUG = 'inn-main'
-const RECOVERY_HOURS = 8
 
-export class ExploreRoom extends BaseRoom<ExploreState> {
+export class ExploreRoom extends EncounterRoom {
   private _sceneData: SceneData = generateSceneFromInn(THE_INN)
-  private enemyManager!: EnemyManager
-  private _combat: InPlaceCombatEngine | null = null
-  private _combatParticipants: Set<string> = new Set()
-  private _combatHeroActorIds: Map<string, string[]> = new Map()
+
+  protected getCombatWalls(): number[][] { return THE_INN.walls }
 
   async onCreate(): Promise<void> {
     this.setState(new ExploreState())
@@ -93,17 +87,7 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       await this.handleMove(client, message)
     })
 
-    this.onMessage<{ action: import('shared-types').Action }>('PLAYER_ACTION', (client, msg) => {
-      this.handleCombatAction(client, msg.action)
-    })
-
-    this.onMessage('END_TURN', (client) => {
-      this.handleEndTurn(client)
-    })
-
-    this.onMessage('JOIN_COMBAT', async (client) => {
-      await this.handleJoinCombat(client)
-    })
+    this.registerCombatMessageHandlers()
 
     this.onMessage('REST', async (client) => {
       const userData = client.userData as { userId?: string; heroIds?: string[] }
@@ -262,14 +246,7 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       for (const npc of this.state.npcs) {
         const front = getFrontCell({ x: npc.x, y: npc.y }, npc.direction)
         if (dest.x === front.x && dest.y === front.y) {
-          if (npc.role === 'doorkeeper') {
-            const nearestDoor = [...this.state.doors].sort((a, b) =>
-              (Math.abs(a.x - npc.x) + Math.abs(a.y - npc.y)) - (Math.abs(b.x - npc.x) + Math.abs(b.y - npc.y))
-            )[0]
-            client.send('INTERACTION_START', { type: 'npc', id: npc.id, name: npc.name, role: npc.role, biomeId: nearestDoor?.biomeId ?? '' })
-          } else {
-            client.send('INTERACTION_START', { type: 'npc', id: npc.id, name: npc.name, role: npc.role })
-          }
+          client.send('INTERACTION_START', { type: 'npc', id: npc.id, name: npc.name, role: npc.role })
           return
         }
       }
@@ -286,40 +263,16 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       if (encounter) {
         await this.startCombat(client, encounter)
       }
-    } else if (!this._combatParticipants.has(client.sessionId)) {
-      const cs = this._combat.getCombatState()
-      const combatEnemies = cs.activeEnemyIds.map(id => cs.actors[id]).filter(Boolean)
-      const pos = { x: current.x, y: current.y }
-      const autoJoin = combatEnemies.some(e =>
-        Math.abs(e.position.x - pos.x) + Math.abs(e.position.y - pos.y) === 1
-      )
-      if (autoJoin) {
-        await this.handleJoinCombat(client)
-      } else {
-        const allActors = Object.values(cs.actors)
-        const nearby = allActors.some(a =>
-          Math.abs(a.position.x - pos.x) + Math.abs(a.position.y - pos.y) <= 4
-        )
-        if (nearby) client.send('COMBAT_JOIN_OFFER')
-      }
+    } else {
+      this.checkCombatProximity(client, { x: current.x, y: current.y })
     }
   }
 
   private async startCombat(client: Client, encounter: EncounterEvent): Promise<void> {
-    const userData = client.userData as { heroIds?: string[] }
-    const heroIds = userData?.heroIds ?? []
-    if (heroIds.length === 0) return
-
-    const current = this.state.players.get(client.sessionId)
-    if (!current) return
-
-    const heroActors = await buildPartyActors(heroIds, { x: current.x, y: current.y })
-    if (heroActors.length === 0) return
-
     const enemyData = this.enemyManager.getEnemy(encounter.enemyId)
     if (!enemyData) return
 
-    const enemyGroup = [{
+    const enemyGroup: ActorState[] = [{
       id: encounter.enemyId,
       name: encounter.enemyName,
       personality: 'wild' as const,
@@ -331,163 +284,12 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       maxEnergy: 10,
       speed: 3,
       position: { x: encounter.x, y: encounter.y },
-      statusEffects: [] as string[],
+      statusEffects: [],
       isNPC: true,
       abilities: [ENEMY_SLASH],
     }]
 
-    client.send('ENCOUNTER', encounter)
-
-    this._combat = new InPlaceCombatEngine(heroActors, [enemyGroup], THE_INN.walls, enemyData.level)
-    this._combatParticipants.add(client.sessionId)
-    this._combatHeroActorIds.set(client.sessionId, heroActors.map((a) => a.id))
-
-    const initialState = this._combat.getCombatState()
-    this.broadcast('COMBAT_START', initialState)
-
-    if (!initialState.isPlayerTurn) {
-      const npcResults = this._combat.endPlayerPhase()
-      for (const r of npcResults) {
-        if (Object.keys(r.hpDeltas).length > 0) this.broadcast('ACTION_RESULT', r)
-      }
-      if (this._combat.isOver()) { this.endCombat(); return }
-      this.broadcast('COMBAT_STATE', this._combat.getCombatState())
-    }
+    await this.beginCombat(client, encounter, [enemyGroup], enemyData.level)
   }
 
-  private async handleJoinCombat(client: Client): Promise<void> {
-    if (!this._combat) return
-    if (this._combatParticipants.has(client.sessionId)) return
-
-    const userData = client.userData as { heroIds?: string[] }
-    const heroIds = userData?.heroIds ?? []
-    if (heroIds.length === 0) return
-
-    const current = this.state.players.get(client.sessionId)
-    if (!current) return
-
-    const joinActors = await buildPartyActors(heroIds, { x: current.x, y: current.y })
-    if (joinActors.length === 0) return
-
-    for (const actor of joinActors) this._combat!.addActor(actor)
-
-    this._combatParticipants.add(client.sessionId)
-    this._combatHeroActorIds.set(client.sessionId, joinActors.map((a) => a.id))
-    this.broadcast('COMBAT_STATE', this._combat.getCombatState())
-  }
-
-  private handleCombatAction(client: Client, action: import('shared-types').Action): void {
-    if (!this._combat) return
-    const sessionHeroIds = this._combatHeroActorIds.get(client.sessionId) ?? []
-    const cs = this._combat.getCombatState()
-    const actorId = getActivePartyActorId(sessionHeroIds, cs, action.actorId)
-    if (!actorId) return
-
-    let actionResult: import('shared-types').ActionResult
-    try {
-      actionResult = this._combat.handlePlayerAction(actorId, action)
-    } catch (e) {
-      client.send('ACTION_REJECTED', { reason: e instanceof Error ? e.message : 'invalid action' })
-      return
-    }
-
-    if (action.type === 'ability') {
-      heroService.awardClassXp(actorId, action.ability.id, CLASS_XP_PER_COMBAT_USE).catch(() => {})
-    }
-
-    if (this._combat.isOver()) { this.endCombat(); return }
-    this.broadcast('ACTION_RESULT', actionResult)
-    this.broadcast('COMBAT_STATE', this._combat.getCombatState())
-  }
-
-  private handleEndTurn(client: Client): void {
-    if (!this._combat) return
-    const sessionHeroIds = this._combatHeroActorIds.get(client.sessionId) ?? []
-    const cs = this._combat.getCombatState()
-    if (!getActivePartyActorId(sessionHeroIds, cs)) return
-
-    const npcResults = this._combat.endPlayerPhase()
-    for (const r of npcResults) {
-      if (Object.keys(r.hpDeltas).length > 0) this.broadcast('ACTION_RESULT', r)
-    }
-    if (this._combat.isOver()) { this.endCombat(); return }
-    this.broadcast('COMBAT_STATE', this._combat.getCombatState())
-  }
-
-  private async endCombat(): Promise<void> {
-    if (!this._combat) return
-    const winningSide = this._combat.winningSide()
-    const cs = this._combat.getCombatState()
-
-    if (winningSide === 'players') {
-      for (const enemyId of cs.activeEnemyIds) {
-        if (this.state.enemies.has(enemyId)) {
-          this.state.enemies.delete(enemyId)
-        }
-        this.enemyManager.removeEnemy(enemyId)
-      }
-      // Persist each hero's remaining HP
-      await Promise.all(
-        Object.values(cs.actors)
-          .filter(a => !a.isNPC)
-          .map(a => heroService.updateCurrentHp(a.id, a.hp))
-      )
-      this.broadcast('COMBAT_END', { result: 'win' })
-    } else if (winningSide === null) {
-      this.broadcast('COMBAT_END', { result: 'cancelled' })
-    } else {
-      const recoveryEndsAt = new Date(Date.now() + RECOVERY_HOURS * 60 * 60 * 1000).toISOString()
-      const ghostHeroes = Object.values(cs.actors).filter(a => !a.isNPC && a.isGhost)
-      await Promise.all(
-        ghostHeroes.map(hero =>
-          supabase
-            .from('heroes')
-            .update({ recovery_ends_at: recoveryEndsAt })
-            .eq('id', hero.id)
-        )
-      )
-      this.broadcast('COMBAT_END', { result: 'lose', recoveryEndsAt })
-    }
-
-    // Sync explore positions to final combat positions so heroes don't snap back
-    for (const [sessionId, heroIds] of this._combatHeroActorIds.entries()) {
-      const leadActor = cs.actors[heroIds[0]]
-      if (leadActor) {
-        const pos = this.state.players.get(sessionId)
-        if (pos) {
-          pos.x = leadActor.position.x
-          pos.y = leadActor.position.y
-        }
-      }
-    }
-
-    this._combat = null
-    this._combatParticipants.clear()
-    this._combatHeroActorIds.clear()
-  }
-
-  private handleInteract(client: Client): void {
-    const pos = this.state.players.get(client.sessionId)
-    if (!pos) return
-    const playerPos: Position = { x: pos.x, y: pos.y }
-    for (const npc of this.state.npcs) {
-      if (isAdjacent(playerPos, { x: npc.x, y: npc.y })) {
-        if (npc.role === 'doorkeeper') {
-          const nearestDoor = [...this.state.doors].sort((a, b) =>
-            (Math.abs(a.x - npc.x) + Math.abs(a.y - npc.y)) - (Math.abs(b.x - npc.x) + Math.abs(b.y - npc.y))
-          )[0]
-          client.send('INTERACTION_START', { type: 'npc', id: npc.id, name: npc.name, role: npc.role, biomeId: nearestDoor?.biomeId ?? '' })
-        } else {
-          client.send('INTERACTION_START', { type: 'npc', id: npc.id, name: npc.name, role: npc.role })
-        }
-        return
-      }
-    }
-    for (const door of this.state.doors) {
-      if (isAdjacent(playerPos, { x: door.x, y: door.y })) {
-        client.send('INTERACTION_START', { type: 'door', id: door.id, biomeId: door.biomeId, label: door.label })
-        return
-      }
-    }
-  }
 }
