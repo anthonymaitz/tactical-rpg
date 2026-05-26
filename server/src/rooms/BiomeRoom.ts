@@ -3,12 +3,11 @@ import { ExploreState, PlayerPosition, DoorEntity, EnemyEntity } from '../schema
 import { EncounterRoom } from './EncounterRoom'
 import { EnemyManager } from './EnemyManager'
 import { isValidMove, isAdjacent } from './logic/explore-logic'
-import { heroService } from '../db/hero-service'
 import { inventoryService } from '../db/inventory-service'
 import { dropTableService } from '../db/drop-table-service'
 import { getMovementDirection } from 'shared-types'
 import type { Position, SceneData, ActorState, CombatState, EncounterEvent, LootResult } from 'shared-types'
-import { weaponDamageBonus, ENEMY_SLASH } from './combat-constants'
+import { ENEMY_SLASH } from './combat-constants'
 
 interface MoveMessage {
   destination: Position
@@ -107,7 +106,6 @@ function isBiomeWalkable(pos: Position): boolean {
 }
 
 export class BiomeRoom extends EncounterRoom {
-  private _sceneData!: SceneData
   private _biomeId = 'verdant-forest'
   private _combatEnemySlugs: Map<string, string> = new Map()
 
@@ -189,44 +187,7 @@ export class BiomeRoom extends EncounterRoom {
       }
     })
 
-    this.onMessage('READY', async (client) => {
-      client.send('SCENE_STATE', this._sceneData)
-
-      // Send JSON snapshot of existing players so client can render them without binary schema sync
-      const playerList: Array<{ sessionId: string; x: number; y: number; direction: string }> = []
-      this.state.players.forEach((player, sid) => {
-        playerList.push({ sessionId: sid, x: player.x, y: player.y, direction: player.direction })
-      })
-      if (playerList.length > 0) client.send('PLAYER_LIST', playerList)
-
-      const userData = client.userData as { userId?: string; heroIds?: string[] }
-      let heroIds = userData?.heroIds ?? []
-
-      if (heroIds.length === 0 && userData.userId) {
-        const heroes = await heroService.listHeroes(userData.userId)
-        heroIds = heroes.map((h) => h.id)
-        client.userData = { ...userData, heroIds } as typeof client.userData
-      }
-
-      if (heroIds.length === 0) return
-      const hero = await heroService.getHero(heroIds[0])
-      if (!hero) return
-      const maxHp = hero.maxHp > 0 ? hero.maxHp : 10
-      const hp = hero.currentHp !== null && hero.currentHp !== undefined ? hero.currentHp : maxHp
-      client.send('HERO_STATE', {
-        name: hero.name,
-        class: hero.characterClass,
-        personality: hero.personality,
-        profession: hero.profession ?? '',
-        die: hero.die,
-        hp,
-        maxHp,
-        combat: 'inGeneral',
-        energy: Array(10).fill(true) as boolean[],
-        starRating: hero.starRating ?? 0,
-        gear: hero.gear ? { weapon: hero.gear.weapon ?? null, weaponBonus: weaponDamageBonus(hero.gear.weapon) } : undefined,
-      })
-    })
+    this.onMessage('READY', (client) => this.handleReadyMessage(client))
   }
 
   async onJoin(client: Client, options: { token?: string; heroIds?: string[]; biomeId?: string }): Promise<void> {

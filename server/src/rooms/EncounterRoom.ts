@@ -8,7 +8,8 @@ import { heroService } from '../db/hero-service'
 import { inventoryService } from '../db/inventory-service'
 import { supabase } from '../db/supabase'
 import { CLASS_XP_PER_COMBAT_USE } from '../db/hero-logic'
-import type { Position, ActorState, CombatState, EncounterEvent, ActionResult, Action } from 'shared-types'
+import { weaponDamageBonus } from './combat-constants'
+import type { Position, SceneData, ActorState, CombatState, EncounterEvent, ActionResult, Action } from 'shared-types'
 
 const RECOVERY_HOURS = 8
 
@@ -21,9 +22,63 @@ export abstract class EncounterRoom extends BaseRoom<ExploreState> {
   protected _combat: InPlaceCombatEngine | null = null
   protected _combatParticipants = new Set<string>()
   protected _combatHeroActorIds = new Map<string, string[]>()
+  protected _sceneData: SceneData = { buildings: [], layers: [], props: [], tokens: [], weather: 'sunny' }
 
   /** Override to supply walkable walls for the combat grid. Default: open field. */
   protected getCombatWalls(): number[][] { return [] }
+
+  /**
+   * Shared READY message handler. Sends SCENE_STATE, PLAYER_LIST, and HERO_STATE.
+   * Pass `{ healOnEnter: true }` for rooms that restore HP to full on entry (e.g. the Inn).
+   * Without it, hero HP is preserved from the DB.
+   */
+  protected async handleReadyMessage(
+    client: Client,
+    opts: { healOnEnter?: boolean } = {},
+  ): Promise<void> {
+    client.send('SCENE_STATE', this._sceneData)
+
+    const playerList: Array<{ sessionId: string; x: number; y: number; direction: string }> = []
+    this.state.players.forEach((player, sid) => {
+      playerList.push({ sessionId: sid, x: player.x, y: player.y, direction: player.direction })
+    })
+    if (playerList.length > 0) client.send('PLAYER_LIST', playerList)
+
+    const userData = client.userData as { userId?: string; heroIds?: string[] }
+    let heroIds = userData?.heroIds ?? []
+    console.log(`[${this.constructor.name}] READY from ${client.sessionId} userId=${userData?.userId} heroIds=${JSON.stringify(heroIds)}`)
+
+    if (heroIds.length === 0 && userData.userId) {
+      const heroes = await heroService.listHeroes(userData.userId)
+      heroIds = heroes.map((h) => h.id)
+      console.log(`[${this.constructor.name}] resolved heroIds from DB: ${JSON.stringify(heroIds)}`)
+      client.userData = { ...userData, heroIds } as typeof client.userData
+    }
+
+    if (heroIds.length === 0) { console.log(`[${this.constructor.name}] no heroIds, skipping HERO_STATE`); return }
+    const hero = await heroService.getHero(heroIds[0])
+    if (!hero) { console.log(`[${this.constructor.name}] hero ${heroIds[0]} not found`); return }
+
+    const maxHp = hero.maxHp > 0 ? hero.maxHp : 10
+    const hp = opts.healOnEnter ? maxHp : (hero.currentHp ?? maxHp)
+    if (opts.healOnEnter) await heroService.restoreHp(hero.id)
+
+    client.send('HERO_STATE', {
+      name: hero.name,
+      class: hero.characterClass,
+      personality: hero.personality,
+      profession: hero.profession ?? '',
+      die: hero.die,
+      hp,
+      maxHp,
+      combat: 'inGeneral',
+      energy: Array(10).fill(true) as boolean[],
+      starRating: hero.starRating ?? 0,
+      gear: hero.gear ? { weapon: hero.gear.weapon ?? null, weaponBonus: weaponDamageBonus(hero.gear.weapon) } : undefined,
+      level: hero.level,
+      secondaryClass: hero.secondaryClass,
+    })
+  }
 
   /**
    * Called after enemies are removed and hero HP is saved on a player win.

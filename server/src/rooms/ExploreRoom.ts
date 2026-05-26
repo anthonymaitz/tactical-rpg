@@ -17,11 +17,11 @@ const INN_MOVE_SPEED = 10
 const SCENE_SLUG = 'inn-main'
 
 export class ExploreRoom extends EncounterRoom {
-  private _sceneData: SceneData = generateSceneFromInn(THE_INN)
 
   protected getCombatWalls(): number[][] { return THE_INN.walls }
 
   async onCreate(): Promise<void> {
+    this._sceneData = generateSceneFromInn(THE_INN)
     this.setState(new ExploreState())
 
     const { data, error } = await supabase
@@ -158,50 +158,7 @@ export class ExploreRoom extends EncounterRoom {
       }
     })
 
-    this.onMessage('READY', async (client) => {
-      client.send('SCENE_STATE', this._sceneData)
-
-      // Send JSON snapshot of existing players so client can render them without binary schema sync
-      const playerList: Array<{ sessionId: string; x: number; y: number; direction: string }> = []
-      this.state.players.forEach((player, sid) => {
-        playerList.push({ sessionId: sid, x: player.x, y: player.y, direction: player.direction })
-      })
-      if (playerList.length > 0) client.send('PLAYER_LIST', playerList)
-
-      const userData = client.userData as { userId?: string; heroIds?: string[] }
-      let heroIds = userData?.heroIds ?? []
-      console.log(`[ExploreRoom] READY from ${client.sessionId} userId=${userData?.userId} heroIds=${JSON.stringify(heroIds)}`)
-
-      // If client session has no heroIds, resolve them from the authenticated user
-      if (heroIds.length === 0 && userData.userId) {
-        const heroes = await heroService.listHeroes(userData.userId)
-        heroIds = heroes.map((h) => h.id)
-        console.log(`[ExploreRoom] resolved heroIds from DB: ${JSON.stringify(heroIds)}`)
-        client.userData = { ...userData, heroIds } as typeof client.userData
-      }
-
-      if (heroIds.length === 0) { console.log(`[ExploreRoom] no heroIds, skipping HERO_STATE`); return }
-      const hero = await heroService.getHero(heroIds[0])
-      if (!hero) { console.log(`[ExploreRoom] hero ${heroIds[0]} not found`); return }
-      const maxHp = hero.maxHp > 0 ? hero.maxHp : 10
-      // Inn auto-heals — restore HP to full on every entry
-      await heroService.restoreHp(hero.id)
-      client.send('HERO_STATE', {
-        name: hero.name,
-        class: hero.characterClass,
-        personality: hero.personality,
-        profession: hero.profession ?? '',
-        die: hero.die,
-        hp: maxHp,
-        maxHp,
-        combat: 'inGeneral',
-        energy: Array(10).fill(true) as boolean[],
-        starRating: hero.starRating ?? 0,
-        gear: hero.gear ? { weapon: hero.gear.weapon ?? null, weaponBonus: weaponDamageBonus(hero.gear.weapon) } : undefined,
-        level: hero.level,
-        secondaryClass: hero.secondaryClass,
-      })
-    })
+    this.onMessage('READY', (client) => this.handleReadyMessage(client, { healOnEnter: true }))
   }
 
   async onJoin(client: Client, options: { token?: string; heroIds?: string[] }): Promise<void> {
