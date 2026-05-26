@@ -1,6 +1,13 @@
-import type { Action, ActorState, AbilityDefinition, CombatState } from 'shared-types'
+import type { Action, ActorState, AbilityDefinition, CombatState, Position } from 'shared-types'
 
-export function getValidActions(actorId: string, state: CombatState): Action[] {
+function isWalkable(pos: Position, walls: number[][]): boolean {
+  if (walls.length === 0) return true
+  if (pos.y < 0 || pos.y >= walls.length) return false
+  if (pos.x < 0 || pos.x >= (walls[0]?.length ?? 0)) return false
+  return walls[pos.y][pos.x] === 0
+}
+
+export function getValidActions(actorId: string, state: CombatState, walls: number[][] = []): Action[] {
   const actor = state.actors[actorId]
   if (!actor || actor.hp <= 0) return []
 
@@ -16,6 +23,7 @@ export function getValidActions(actorId: string, state: CombatState): Action[] {
       if (dx === 0 && dy === 0) continue
       if (Math.abs(dx) + Math.abs(dy) > actor.speed) continue
       const dest = { x: actor.position.x + dx, y: actor.position.y + dy }
+      if (!isWalkable(dest, walls)) continue
       if (!occupied.has(`${dest.x},${dest.y}`)) {
         actions.push({ type: 'move', actorId, destination: dest })
       }

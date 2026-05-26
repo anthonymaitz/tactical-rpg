@@ -1,15 +1,6 @@
-import { resolveAction, applyResult } from 'rules-engine'
+import { resolveAction, applyResult, decideNPCAction } from 'rules-engine'
 import { getMoveCost } from 'shared-types'
-import type { ActorState, CombatState, CombatPhase, Action, ActionResult, Position } from 'shared-types'
-
-const DIRS: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1]]
-
-function isWalkable(pos: Position, walls: number[][]): boolean {
-  if (walls.length === 0) return true
-  if (pos.y < 0 || pos.y >= walls.length) return false
-  if (pos.x < 0 || pos.x >= (walls[0]?.length ?? 0)) return false
-  return walls[pos.y][pos.x] === 0
-}
+import type { ActorState, CombatState, CombatPhase, Action, ActionResult } from 'shared-types'
 
 function rollD20(): number {
   return Math.floor(Math.random() * 20) + 1
@@ -293,51 +284,31 @@ export class InPlaceCombatEngine {
       const players = Object.values(this.state.actors).filter(a => !a.isNPC && !a.isGhost)
       if (players.length === 0) break
 
-      const adjacent = players.find(p =>
-        Math.abs(p.position.x - actor.position.x) + Math.abs(p.position.y - actor.position.y) === 1
-      )
+      const action = decideNPCAction(actorId, this.state, this.walls)
 
-      if (adjacent) {
-        const ability = actor.abilities.find(ab => actor.energy >= ab.energyCost)
-        if (ability) {
-          const action: Action = { type: 'ability', actorId, targetIds: [adjacent.id], ability }
-          const result = resolveAction(actorId, action, this.state)
-          this.state = applyResult(result, this.state)
-          this.markGhosts()
-          results.push(result)
-          if (this.state.isOver) break
-          continue
-        }
+      if (action.type === 'skip') break
+
+      if (action.type === 'ability') {
+        const result = resolveAction(actorId, action, this.state)
+        this.state = applyResult(result, this.state)
+        this.markGhosts()
+        results.push(result)
+        if (this.state.isOver) break
+        continue
       }
 
-      const target = players.reduce((closest, p) => {
-        const d = Math.abs(p.position.x - actor.position.x) + Math.abs(p.position.y - actor.position.y)
-        const bd = Math.abs(closest.position.x - actor.position.x) + Math.abs(closest.position.y - actor.position.y)
-        return d < bd ? p : closest
-      })
+      if (action.type === 'move') {
+        const cost = getMoveCost(actor.position, action.destination, this.walls) ?? 1
+        const withEnergy: ActionResult = {
+          ...resolveAction(actorId, action, this.state),
+          energyDeltas: { [actorId]: -cost },
+        }
+        this.state = applyResult(withEnergy, this.state)
+        results.push(withEnergy)
+        continue
+      }
 
-      const occupied = new Set(
-        Object.values(this.state.actors)
-          .filter(a => a.id !== actorId)
-          .map(a => `${a.position.x},${a.position.y}`)
-      )
-
-      const step = DIRS
-        .map(([dx, dy]) => ({ x: actor.position.x + dx, y: actor.position.y + dy }))
-        .filter(p => isWalkable(p, this.walls) && !occupied.has(`${p.x},${p.y}`))
-        .sort((a, b) => {
-          const da = Math.abs(a.x - target.position.x) + Math.abs(a.y - target.position.y)
-          const db = Math.abs(b.x - target.position.x) + Math.abs(b.y - target.position.y)
-          return da - db
-        })[0]
-
-      if (!step) break
-
-      const action: Action = { type: 'move', actorId, destination: step }
-      const result = resolveAction(actorId, action, this.state)
-      const withEnergy: ActionResult = { ...result, energyDeltas: { [actorId]: -1 } }
-      this.state = applyResult(withEnergy, this.state)
-      results.push(withEnergy)
+      break
     }
 
     return results

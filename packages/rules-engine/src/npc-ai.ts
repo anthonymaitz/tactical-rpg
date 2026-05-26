@@ -1,11 +1,11 @@
 import type { Action, CombatState } from 'shared-types'
 import { getValidActions } from './valid-actions'
 
-export function decideNPCAction(npcId: string, state: CombatState): Action {
+export function decideNPCAction(npcId: string, state: CombatState, walls: number[][] = []): Action {
   const npc = state.actors[npcId]
   if (!npc || npc.hp <= 0) return { type: 'skip', actorId: npcId }
 
-  const valid = getValidActions(npcId, state)
+  const valid = getValidActions(npcId, state, walls)
   if (valid.length === 0) return { type: 'skip', actorId: npcId }
 
   const abilities = valid.filter(a => a.type === 'ability')
