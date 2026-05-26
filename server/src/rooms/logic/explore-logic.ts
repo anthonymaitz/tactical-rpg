@@ -19,19 +19,3 @@ export function isAdjacent(a: Position, b: Position): boolean {
   return getManhattanDistance(a, b) === 1
 }
 
-export function getFrontCell(pos: Position, direction: string): Position {
-  switch (direction) {
-    case 'n': return { x: pos.x, y: pos.y - 1 }
-    case 's': return { x: pos.x, y: pos.y + 1 }
-    case 'e': return { x: pos.x + 1, y: pos.y }
-    case 'w': return { x: pos.x - 1, y: pos.y }
-    default:  return { x: pos.x, y: pos.y + 1 }
-  }
-}
-
-export function getMovementDirection(from: Position, to: Position): string {
-  const dx = to.x - from.x
-  const dy = to.y - from.y
-  if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? 'e' : 'w'
-  return dy >= 0 ? 's' : 'n'
-}
