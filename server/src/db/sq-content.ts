@@ -124,6 +124,19 @@ export async function getSqClassSecondaryAbilities(classId: string): Promise<{ i
   return result
 }
 
+export type NpcPanel = { speaker: string; text: string }
+export type NpcDialogue = Record<string, NpcPanel[]>
+
+export async function getNpcDialogue(): Promise<NpcDialogue | null> {
+  const { data, error } = await supabase
+    .from('sq_metadata')
+    .select('value')
+    .eq('key', 'npc_dialogue')
+    .single()
+  if (error || !data) return null
+  return data.value as NpcDialogue
+}
+
 export async function listSqClasses(): Promise<Array<{ id: string; firstAbility: SqAbility | null }>> {
   const { data, error } = await supabase
     .from('sq_classes')

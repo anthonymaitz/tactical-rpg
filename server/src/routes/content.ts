@@ -1,11 +1,16 @@
 import { Hono } from 'hono'
-import { getSqContent, listSqClasses } from '../db/sq-content'
+import { getSqContent, listSqClasses, getNpcDialogue } from '../db/sq-content'
 
 export const contentRoutes = new Hono()
 
 contentRoutes.get('/', async (c) => {
   const content = await getSqContent()
   return c.json(content)
+})
+
+contentRoutes.get('/npc-dialogue', async (c) => {
+  const dialogue = await getNpcDialogue()
+  return c.json(dialogue ?? {})
 })
 
 contentRoutes.get('/classes', async (c) => {

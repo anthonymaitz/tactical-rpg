@@ -1,9 +1,13 @@
 import type { Panel } from 'click-comics'
+import { createResource } from 'solid-js'
 import { createExploreRoom } from '../hooks/useExploreRoom'
 import { token, heroIds } from '../session'
 import { LocationScreen } from './LocationScreen'
 
-const NPC_PANELS: Record<string, Panel[]> = {
+const API = import.meta.env.VITE_API_URL
+
+// Hardcoded fallback — used while the DB fetch is loading or if the key doesn't exist yet
+const FALLBACK_NPC_PANELS: Record<string, Panel[]> = {
   innkeeper: [
     { speaker: 'Innkeeper', text: 'Welcome back! Rest up — your heroes are fully restored.' },
   ],
@@ -21,12 +25,22 @@ const NPC_PANELS: Record<string, Panel[]> = {
   ],
 }
 
+async function fetchNpcDialogue(): Promise<Record<string, Panel[]>> {
+  const res = await fetch(`${API}/content/npc-dialogue`)
+  if (!res.ok) return FALLBACK_NPC_PANELS
+  const data = await res.json() as Record<string, Panel[]>
+  // If the DB key doesn't exist yet the server returns {}, fall back to hardcoded
+  if (!data || Object.keys(data).length === 0) return FALLBACK_NPC_PANELS
+  return data
+}
+
 export function ExploreScreen() {
   const state = createExploreRoom(token, heroIds)
+  const [npcPanels] = createResource(fetchNpcDialogue)
   return (
     <LocationScreen config={{
       state,
-      npcPanels: NPC_PANELS,
+      npcPanels: npcPanels() ?? FALLBACK_NPC_PANELS,
     }} />
   )
 }
