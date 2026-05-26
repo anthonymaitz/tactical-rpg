@@ -6,6 +6,7 @@ import { contentRoutes } from './routes/content'
 import { inventoryRoutes } from './routes/inventory'
 import { debugRoutes } from './routes/debug'
 import { biomeRoutes } from './routes/biomes'
+import { chunkRoutes } from './routes/chunks'
 
 export function createHttpApp(): Hono {
   const app = new Hono()
@@ -24,5 +25,6 @@ export function createHttpApp(): Hono {
   app.route('/inventory', inventoryRoutes)
   app.route('/debug', debugRoutes)
   app.route('/biomes', biomeRoutes)
+  app.route('/chunks', chunkRoutes)
   return app
 }

@@ -49,6 +49,17 @@ export interface SceneData {
   weather: string
 }
 
+export type SceneChunkMeta = {
+  slug: string
+  name: string
+  biomeTags: string[]        // e.g. ['verdant-forest', 'dungeon-depths']
+  width: number              // bounding box in tiles
+  height: number
+  sceneData: SceneData       // the actual tile/token content
+  createdBy?: string         // user UUID
+  updatedAt?: string         // ISO timestamp
+}
+
 export function generateSceneFromInn(inn: InnMap): SceneData {
   const buildings: SceneBuilding[] = []
   for (let row = 0; row < inn.walls.length; row++) {
