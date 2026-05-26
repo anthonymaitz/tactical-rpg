@@ -19,6 +19,7 @@ export type DoorLike = {
   id: string
   biomeId: string
   label: string
+  destinationSlug?: string
   x: number
   y: number
 }
@@ -36,7 +37,7 @@ export type MoveContext = {
 
 export type InteractionEvent =
   | { type: 'npc'; id: string; name: string; role: string }
-  | { type: 'door'; id: string; biomeId: string; label: string }
+  | { type: 'door'; id: string; biomeId: string; label: string; destinationSlug?: string }
 
 export type MoveResult =
   | { type: 'rejected'; reason: 'out_of_range' | 'blocked' }
@@ -92,7 +93,7 @@ export function processMove(ctx: MoveContext): MoveResult {
           type: 'moved',
           newPos,
           direction,
-          interaction: { type: 'door', id: door.id, biomeId: door.biomeId, label: door.label },
+          interaction: { type: 'door', id: door.id, biomeId: door.biomeId, label: door.label, destinationSlug: door.destinationSlug },
         }
       }
     }

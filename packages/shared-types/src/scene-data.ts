@@ -28,6 +28,7 @@ export interface SceneToken {
   role?: 'innkeeper' | 'blacksmith' | 'doorkeeper' | 'sage'
   name?: string
   biomeId?: string
+  destinationSlug?: string
   label?: string
   level?: number
   spawnRadius?: number

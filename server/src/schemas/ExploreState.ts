@@ -20,6 +20,7 @@ export class DoorEntity extends Schema {
   @type('string') id: string = ''
   @type('string') biomeId: string = ''
   @type('string') label: string = ''
+  @type('string') destinationSlug: string = ''
   @type('number') x: number = 0
   @type('number') y: number = 0
 }

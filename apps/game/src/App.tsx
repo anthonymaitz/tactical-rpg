@@ -3,6 +3,7 @@ import { Router, Route } from '@solidjs/router'
 import { ConnectScreen } from './screens/ConnectScreen'
 import { ExploreScreen } from './screens/ExploreScreen'
 import { BiomeScreen } from './screens/BiomeScreen'
+import { DungeonScreen } from './screens/DungeonScreen'
 import { DebugScreen } from './screens/DebugScreen'
 import { BuildPreviewScreen } from './screens/BuildPreviewScreen'
 
@@ -14,6 +15,7 @@ export default function App() {
       <Route path="/" component={ConnectScreen} />
       <Route path="/inn" component={ExploreScreen} />
       <Route path="/biome/:biomeId" component={BiomeScreen} />
+      <Route path="/dungeon/:slug" component={DungeonScreen} />
       <Route path="/build" component={BuildScreen} />
       <Route path="/build/:slug" component={BuildScreen} />
       <Route path="/build-preview/:slug" component={BuildPreviewScreen} />

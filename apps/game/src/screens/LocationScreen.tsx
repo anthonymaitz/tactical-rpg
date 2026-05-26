@@ -410,6 +410,9 @@ export function LocationScreen(props: { config: LocationConfig }) {
       }
       return npcPanels[ev.role] ?? null
     }
+    if (ev.type === 'door' && ev.destinationSlug) {
+      return [{ speaker: 'The Door', text: `A dungeon entrance. Step through to enter ${ev.label || ev.destinationSlug}.` }]
+    }
     if (ev.type === 'door' && ev.biomeId) {
       const name = BIOME_NAMES[ev.biomeId] ?? ev.biomeId
       return [{ speaker: 'The Door', text: `Ready to venture into ${name}? Choose your party and step through.` }]
@@ -420,6 +423,11 @@ export function LocationScreen(props: { config: LocationConfig }) {
   function handleInteractionComplete() {
     const ev = props.config.state.interaction()
     if (ev?.type === 'npc' && ev.role === 'innkeeper') props.config.state.rest()
+    if (ev?.type === 'door' && ev.destinationSlug) {
+      props.config.state.dismissInteraction()
+      navigate(`/dungeon/${ev.destinationSlug}`)
+      return
+    }
     if (ev?.type === 'door' && ev.biomeId) {
       void heroRoster.refresh()
       setPartyPickerBiomeId(ev.biomeId)

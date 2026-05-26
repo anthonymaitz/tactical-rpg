@@ -2,46 +2,45 @@ import type { Client } from '@colyseus/core'
 import { ExploreState, PlayerPosition, NpcEntity, DoorEntity, EnemyEntity } from '../schemas/ExploreState'
 import { EnemyManager } from './EnemyManager'
 import { EncounterRoom } from './EncounterRoom'
-import { isWalkable } from './logic/explore-logic'
+import { isWalkable as isWalkableCell } from './logic/explore-logic'
 import { processMove } from './logic/move-handler'
-import { heroService } from '../db/hero-service'
-import { supabase } from '../db/supabase'
-import { THE_INN, generateSceneFromInn } from 'shared-types'
-import type { Position, SceneData, ActorState, EncounterEvent } from 'shared-types'
-import { weaponDamageBonus, ENEMY_SLASH, ENEMY_ABILITIES } from './combat-constants'
+import { chunkService } from '../db/chunk-service'
+import type { Position, ActorState, EncounterEvent } from 'shared-types'
+import { ENEMY_SLASH } from './combat-constants'
 
 interface MoveMessage {
   destination: Position
 }
 
-const INN_MOVE_SPEED = 10
-const SCENE_SLUG = 'inn-main'
+const DUNGEON_MOVE_SPEED = 10
 
-export class ExploreRoom extends EncounterRoom {
+export class DungeonRoom extends EncounterRoom {
+  private _walls: number[][] = []
 
-  protected getCombatWalls(): number[][] { return THE_INN.walls }
+  protected getCombatWalls(): number[][] {
+    return this._walls
+  }
 
-  async onCreate(): Promise<void> {
-    this._sceneData = generateSceneFromInn(THE_INN)
+  async onCreate(options: { chunkSlug: string }): Promise<void> {
     this.setState(new ExploreState())
 
-    const { data, error } = await supabase
-      .from('scenes')
-      .select('scene_data')
-      .eq('slug', SCENE_SLUG)
-      .maybeSingle()
-
-    if (error) {
-      console.warn(`[ExploreRoom] Failed to fetch scene '${SCENE_SLUG}':`, error.message)
-    } else if (data?.scene_data && ((data.scene_data as SceneData).tokens?.length ?? 0) > 0) {
-      const stored = data.scene_data as SceneData
-      // Always use code-defined NPC and door tokens from THE_INN — stored scene may predate new NPCs
-      const canonical = generateSceneFromInn(THE_INN)
-      const canonicalIds = new Set(canonical.tokens?.map((t) => t.id) ?? [])
-      const extraTokens = (stored.tokens ?? []).filter((t) => !canonicalIds.has(t.id))
-      this._sceneData = { ...stored, tokens: [...(canonical.tokens ?? []), ...extraTokens] }
+    const meta = await chunkService.getChunk(options.chunkSlug)
+    if (!meta) {
+      console.warn(`[DungeonRoom] chunk '${options.chunkSlug}' not found — using empty scene`)
+    } else {
+      this._sceneData = meta.sceneData
+      // Build wall grid from building tiles (wall value = 1 where a building tile exists)
+      const walls: number[][] = []
+      for (const building of this._sceneData.buildings) {
+        const row = building.row
+        const col = building.col
+        if (!walls[row]) walls[row] = []
+        walls[row][col] = 1
+      }
+      this._walls = walls
     }
 
+    // Build NPC and door entities from scene tokens
     for (const token of this._sceneData.tokens ?? []) {
       if (token.type === 'npc') {
         const entity = new NpcEntity()
@@ -89,69 +88,6 @@ export class ExploreRoom extends EncounterRoom {
       await this.handleMove(client, message)
     })
 
-    this.registerCombatMessageHandlers()
-
-    this.onMessage('REST', async (client) => {
-      const userData = client.userData as { userId?: string; heroIds?: string[] }
-      const heroId = (userData?.heroIds ?? [])[0]
-      if (!heroId) return
-      const hero = await heroService.getHero(heroId)
-      if (!hero) return
-      const maxHp = hero.maxHp > 0 ? hero.maxHp : 10
-      await heroService.restoreHp(heroId)
-      client.send('HERO_STATE', {
-        name: hero.name,
-        class: hero.characterClass,
-        personality: hero.personality,
-        profession: hero.profession ?? '',
-        die: hero.die,
-        hp: maxHp,
-        maxHp,
-        combat: 'inGeneral',
-        energy: Array(10).fill(true) as boolean[],
-        starRating: hero.starRating ?? 0,
-        gear: hero.gear ? { weapon: hero.gear.weapon ?? null, weaponBonus: weaponDamageBonus(hero.gear.weapon) } : undefined,
-        level: hero.level,
-        secondaryClass: hero.secondaryClass,
-      })
-    })
-
-    this.onMessage<{ className: string }>('SET_SECONDARY_CLASS', async (client, message) => {
-      const userData = client.userData as { heroIds?: string[] }
-      const heroId = (userData?.heroIds ?? [])[0]
-      if (!heroId) return
-
-      const hero = await heroService.getHero(heroId)
-      if (!hero) return
-      if (hero.level < 5) {
-        client.send('ERROR', { code: 'SECONDARY_CLASS_LOCKED', message: 'Secondary class unlocks at level 5' })
-        return
-      }
-
-      try {
-        const updated = await heroService.setSecondaryClass(heroId, message.className)
-        const maxHp = updated.maxHp > 0 ? updated.maxHp : 10
-        client.send('HERO_STATE', {
-          name: updated.name,
-          class: updated.characterClass,
-          personality: updated.personality,
-          profession: updated.profession ?? '',
-          die: updated.die,
-          hp: maxHp,
-          maxHp,
-          combat: 'inGeneral',
-          energy: Array(10).fill(true) as boolean[],
-          starRating: updated.starRating ?? 0,
-          gear: updated.gear ? { weapon: updated.gear.weapon ?? null, weaponBonus: weaponDamageBonus(updated.gear?.weapon) } : undefined,
-          level: updated.level,
-          secondaryClass: updated.secondaryClass,
-        })
-      } catch (err) {
-        console.error('[ExploreRoom] setSecondaryClass failed:', err)
-        client.send('ERROR', { code: 'SET_CLASS_FAILED', message: 'Failed to set secondary class' })
-      }
-    })
-
     this.onMessage<{ direction: string }>('FACE', (client, message) => {
       const player = this.state.players.get(client.sessionId)
       if (player) {
@@ -160,15 +96,27 @@ export class ExploreRoom extends EncounterRoom {
       }
     })
 
-    this.onMessage('READY', (client) => this.handleReadyMessage(client, { healOnEnter: true }))
+    this.registerCombatMessageHandlers()
+
+    this.onMessage('READY', (client) => this.handleReadyMessage(client))
   }
 
-  async onJoin(client: Client, options: { token?: string; heroIds?: string[] }): Promise<void> {
-    console.log(`[ExploreRoom] onJoin ${client.sessionId} heroIds=${JSON.stringify(options.heroIds)}`)
+  async onJoin(client: Client, options: { token?: string; heroIds?: string[]; chunkSlug?: string }): Promise<void> {
+    console.log(`[DungeonRoom] onJoin ${client.sessionId} heroIds=${JSON.stringify(options.heroIds)}`)
     const userId = await this.verifyToken(options.token)
+
+    // Spawn at first entryPoint token if present, else center of scene
+    let spawnX = 8
+    let spawnY = 8
+    const entryToken = (this._sceneData.tokens ?? []).find((t) => t.type === 'spawn-point' && t.name?.toLowerCase().includes('entry'))
+    if (entryToken) {
+      spawnX = entryToken.col
+      spawnY = entryToken.row
+    }
+
     const pos = new PlayerPosition()
-    pos.x = THE_INN.spawnX
-    pos.y = THE_INN.spawnY
+    pos.x = spawnX
+    pos.y = spawnY
     pos.characterId = client.sessionId
     this.state.players.set(client.sessionId, pos)
     const heroIds = options.heroIds ?? []
@@ -189,8 +137,8 @@ export class ExploreRoom extends EncounterRoom {
     const result = processMove({
       currentPos: { x: current.x, y: current.y },
       destination: message.destination,
-      maxSpeed: INN_MOVE_SPEED,
-      isWalkable: (pos) => isWalkable(THE_INN, pos),
+      maxSpeed: DUNGEON_MOVE_SPEED,
+      isWalkable: (pos) => this.isDungeonWalkable(pos),
       npcs: this.state.npcs,
       doors: this.state.doors,
       isCombatActive: !!this._combat,
@@ -201,7 +149,6 @@ export class ExploreRoom extends EncounterRoom {
       return
     }
 
-    // Apply position update
     current.direction = result.direction
     current.x = result.newPos.x
     current.y = result.newPos.y
@@ -212,7 +159,6 @@ export class ExploreRoom extends EncounterRoom {
       return
     }
 
-    // encounterCheck: true — run enemy proximity check
     if (!this._combat) {
       const encounter = this.enemyManager.onPlayerMove(current.x, current.y)
       if (encounter) {
@@ -221,6 +167,11 @@ export class ExploreRoom extends EncounterRoom {
     } else {
       this.checkCombatProximity(client, { x: current.x, y: current.y })
     }
+  }
+
+  private isDungeonWalkable(pos: Position): boolean {
+    if (this._walls.length === 0) return true
+    return (this._walls[pos.y]?.[pos.x] ?? 0) === 0
   }
 
   private async startCombat(client: Client, encounter: EncounterEvent): Promise<void> {
@@ -241,10 +192,9 @@ export class ExploreRoom extends EncounterRoom {
       position: { x: encounter.x, y: encounter.y },
       statusEffects: [],
       isNPC: true,
-      abilities: ENEMY_ABILITIES[encounter.enemyName] ?? [ENEMY_SLASH],
+      abilities: [ENEMY_SLASH],
     }]
 
     await this.beginCombat(client, encounter, [enemyGroup], enemyData.level)
   }
-
 }

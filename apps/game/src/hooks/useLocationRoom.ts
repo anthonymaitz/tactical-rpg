@@ -11,7 +11,7 @@ const BIOME_SPAWN = { x: 50, y: 48 }
 
 type PlayerPosition = { x: number; y: number; characterId: string; direction: string; onChange: (cb: () => void) => void }
 type NpcEntity = { id: string; name: string; role: string; x: number; y: number; direction: string }
-type DoorEntity = { id: string; biomeId: string; label: string; x: number; y: number }
+type DoorEntity = { id: string; biomeId: string; label: string; destinationSlug?: string; x: number; y: number }
 type EnemyEntity = { id: string; name: string; x: number; y: number; hp: number; maxHp: number; level: number }
 type LocationState = {
   players: { onAdd: (cb: (player: PlayerPosition, id: string) => void) => void; onRemove: (cb: (val: unknown, id: string) => void) => void }
@@ -22,15 +22,15 @@ type LocationState = {
 
 export type PlayerState = { x: number; y: number; characterId: string; direction: string }
 export type NpcState = { id: string; name: string; role: string; x: number; y: number; direction: string }
-export type DoorState = { id: string; biomeId: string; label: string; x: number; y: number }
+export type DoorState = { id: string; biomeId: string; label: string; destinationSlug?: string; x: number; y: number }
 export type EnemyState = { id: string; name: string; x: number; y: number }
 export type InteractionEvent =
   | { type: 'npc'; id: string; name: string; role: string; biomeId?: string }
-  | { type: 'door'; id: string; biomeId: string; label: string }
+  | { type: 'door'; id: string; biomeId: string; label: string; destinationSlug?: string }
 
 export type LocationRoomConfig = {
-  roomName: 'ExploreRoom' | 'BiomeRoom'
-  options: () => { token: string | null; heroIds: string[]; biomeId?: string }
+  roomName: 'ExploreRoom' | 'BiomeRoom' | 'DungeonRoom'
+  options: () => { token: string | null; heroIds: string[]; biomeId?: string; chunkSlug?: string }
   features?: {
     combatJoinOffer?: boolean
     heroMeta?: boolean
@@ -70,12 +70,13 @@ export function useLocationRoom(config: LocationRoomConfig) {
   const [predictedPos, setPredictedPos] = createSignal<Position | null>(null)
 
   const isBiome = config.roomName === 'BiomeRoom'
-  const logPrefix = isBiome ? '[useBiomeRoom]' : '[useExploreRoom]'
+  const isDungeon = config.roomName === 'DungeonRoom'
+  const logPrefix = isBiome ? '[useBiomeRoom]' : isDungeon ? '[useDungeonRoom]' : '[useExploreRoom]'
   const spawnX = isBiome ? BIOME_SPAWN.x : THE_INN.spawnX
   const spawnY = isBiome ? BIOME_SPAWN.y : THE_INN.spawnY
 
   createEffect(on(config.options, (opts) => {
-    const { token: t, heroIds: ids, biomeId: bid } = opts
+    const { token: t, heroIds: ids, biomeId: bid, chunkSlug: slug } = opts
 
     room?.leave()
     room = undefined
@@ -102,11 +103,13 @@ export function useLocationRoom(config: LocationRoomConfig) {
 
     if (!t) return
     if (isBiome && !bid) return
+    if (isDungeon && !slug) return
 
     supabase.auth.getSession().then(({ data }) => {
       const freshToken = data.session?.access_token ?? t
-      const joinOpts: { token: string; heroIds: string[]; biomeId?: string } = { token: freshToken, heroIds: ids }
+      const joinOpts: { token: string; heroIds: string[]; biomeId?: string; chunkSlug?: string } = { token: freshToken, heroIds: ids }
       if (bid) joinOpts.biomeId = bid
+      if (slug) joinOpts.chunkSlug = slug
       return joinRoom<LocationState>(config.roomName, joinOpts)
     }).then((r) => {
       room = r
@@ -132,7 +135,7 @@ export function useLocationRoom(config: LocationRoomConfig) {
       }
       r.state.doors.onAdd((door: DoorEntity) => {
         console.log(logPrefix, 'schema onAdd door', door.id)
-        setDoors((prev) => [...prev, { id: door.id, biomeId: door.biomeId, label: door.label, x: door.x, y: door.y }])
+        setDoors((prev) => [...prev, { id: door.id, biomeId: door.biomeId, label: door.label, destinationSlug: door.destinationSlug, x: door.x, y: door.y }])
       })
       r.state.enemies.onAdd((enemy: EnemyEntity, id: string) => {
         console.log(logPrefix, 'schema onAdd enemy', id)
@@ -162,7 +165,7 @@ export function useLocationRoom(config: LocationRoomConfig) {
           .map((t) => ({ id: t.id, name: t.name ?? '', role: t.role ?? '', x: t.col, y: t.row, direction: t.direction ?? 's' }))
         const sceneDoors = (data.tokens ?? [])
           .filter((t) => t.type === 'door')
-          .map((t) => ({ id: t.id, biomeId: t.biomeId ?? '', label: t.label ?? '', x: t.col, y: t.row }))
+          .map((t) => ({ id: t.id, biomeId: t.biomeId ?? '', label: t.label ?? '', destinationSlug: t.destinationSlug, x: t.col, y: t.row }))
         if (sceneNpcs.length > 0) setNpcs(sceneNpcs)
         if (sceneDoors.length > 0) setDoors(sceneDoors)
       })
