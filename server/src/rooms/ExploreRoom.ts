@@ -8,7 +8,7 @@ import { heroService } from '../db/hero-service'
 import { supabase } from '../db/supabase'
 import { THE_INN, generateSceneFromInn } from 'shared-types'
 import type { Position, SceneData, ActorState, EncounterEvent } from 'shared-types'
-import { weaponDamageBonus, ENEMY_SLASH } from './combat-constants'
+import { weaponDamageBonus, ENEMY_SLASH, ENEMY_ABILITIES } from './combat-constants'
 
 interface MoveMessage {
   destination: Position
@@ -240,7 +240,7 @@ export class ExploreRoom extends EncounterRoom {
       position: { x: encounter.x, y: encounter.y },
       statusEffects: [],
       isNPC: true,
-      abilities: [ENEMY_SLASH],
+      abilities: ENEMY_ABILITIES[encounter.enemyName] ?? [ENEMY_SLASH],
     }]
 
     await this.beginCombat(client, encounter, [enemyGroup], enemyData.level)

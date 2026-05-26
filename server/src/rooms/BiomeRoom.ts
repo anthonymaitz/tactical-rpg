@@ -8,7 +8,7 @@ import { dropTableService } from '../db/drop-table-service'
 import { getBiomeSpawns } from '../db/biome-service'
 import { chunkService } from '../db/chunk-service'
 import type { Position, ActorState, CombatState, EncounterEvent, LootResult } from 'shared-types'
-import { ENEMY_SLASH } from './combat-constants'
+import { ENEMY_SLASH, ENEMY_ABILITIES } from './combat-constants'
 import { assembleWorld } from './logic/world-assembly'
 
 interface MoveMessage {
@@ -269,7 +269,7 @@ export class BiomeRoom extends EncounterRoom {
       position: pos,
       statusEffects: [],
       isNPC: true,
-      abilities: [ENEMY_SLASH],
+      abilities: ENEMY_ABILITIES[name] ?? [ENEMY_SLASH],
     })
 
     const group0 = [makeEnemyActor(encounter.enemyId, encounter.enemyName, enemyData, { x: encounter.x, y: encounter.y })]
