@@ -336,14 +336,18 @@ export function LocationScreen(props: { config: LocationConfig }) {
   // --- Explore map ---
   const exploreMap = (): ExploreMap => {
     const myId = props.config.state.mySessionId()
-    const myPos = myId ? props.config.state.players()[myId] : null
+    const serverPos = myId ? props.config.state.players()[myId] : null
+    const predicted = props.config.state.predictedPos()
+    // Use predicted position for local player's token when a move is in-flight
+    const myPos = serverPos ? (predicted ? { ...serverPos, x: predicted.x, y: predicted.y } : serverPos) : null
     const partyIds = heroIds()
     const tokens: ExploreToken[] = [
       ...Object.entries(props.config.state.players()).map(([id, p]) => {
         const isMe = id === myId
         const tokenId = isMe ? (partyIds[0] ?? id) : id
+        const displayPos = isMe && predicted ? predicted : p
         return {
-          x: p.x, y: p.y,
+          x: displayPos.x, y: displayPos.y,
           type: 'player' as const,
           id: tokenId,
           label: id,

@@ -67,6 +67,7 @@ export function useLocationRoom(config: LocationRoomConfig) {
   const [combatLoot, setCombatLoot] = createSignal<LootResult | null>(null)
   const [heroMeta, setHeroMeta] = createSignal<{ level: number; secondaryClass: string | null }>({ level: 1, secondaryClass: null })
   const [serverError, setServerError] = createSignal<string | null>(null)
+  const [predictedPos, setPredictedPos] = createSignal<Position | null>(null)
 
   const isBiome = config.roomName === 'BiomeRoom'
   const logPrefix = isBiome ? '[useBiomeRoom]' : '[useExploreRoom]'
@@ -97,6 +98,7 @@ export function useLocationRoom(config: LocationRoomConfig) {
     setCombatLoot(null)
     setHeroMeta({ level: 1, secondaryClass: null })
     setServerError(null)
+    setPredictedPos(null)
 
     if (!t) return
     if (isBiome && !bid) return
@@ -179,6 +181,7 @@ export function useLocationRoom(config: LocationRoomConfig) {
           ...prev,
           [data.sessionId]: { x: data.x, y: data.y, characterId: prev[data.sessionId]?.characterId ?? data.sessionId, direction: data.direction },
         }))
+        if (data.sessionId === r.sessionId) setPredictedPos(null)
       })
       r.onMessage('PLAYER_LEFT', (data: { sessionId: string }) => {
         setPlayers((prev) => { const next = { ...prev }; delete next[data.sessionId]; return next })
@@ -221,6 +224,7 @@ export function useLocationRoom(config: LocationRoomConfig) {
         setTimeout(() => setActionError(null), 3000)
       })
       r.onMessage('MOVE_REJECTED', (data: { reason?: string }) => {
+        setPredictedPos(null)
         setActionError(data.reason ?? 'Cannot move there')
         setTimeout(() => setActionError(null), 3000)
       })
@@ -265,7 +269,8 @@ export function useLocationRoom(config: LocationRoomConfig) {
     combatLoot,
     heroMeta,
     serverError,
-    move(destination: Position) { room?.send('MOVE', { destination }) },
+    predictedPos,
+    move(destination: Position) { setPredictedPos(destination); room?.send('MOVE', { destination }) },
     face(direction: string) { room?.send('FACE', { direction }) },
     rest() { room?.send('REST') },
     dismissInteraction() { setInteraction(null) },
