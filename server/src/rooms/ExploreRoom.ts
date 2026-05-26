@@ -2,10 +2,11 @@ import type { Client } from '@colyseus/core'
 import { ExploreState, PlayerPosition, NpcEntity, DoorEntity, EnemyEntity } from '../schemas/ExploreState'
 import { EnemyManager } from './EnemyManager'
 import { EncounterRoom } from './EncounterRoom'
-import { isValidMove, isWalkable, isAdjacent } from './logic/explore-logic'
+import { isWalkable } from './logic/explore-logic'
+import { processMove } from './logic/move-handler'
 import { heroService } from '../db/hero-service'
 import { supabase } from '../db/supabase'
-import { THE_INN, generateSceneFromInn, getFrontCell, getMovementDirection } from 'shared-types'
+import { THE_INN, generateSceneFromInn } from 'shared-types'
 import type { Position, SceneData, ActorState, EncounterEvent } from 'shared-types'
 import { weaponDamageBonus, ENEMY_SLASH } from './combat-constants'
 
@@ -183,38 +184,34 @@ export class ExploreRoom extends EncounterRoom {
   private async handleMove(client: Client, message: MoveMessage): Promise<void> {
     const current = this.state.players.get(client.sessionId)
     if (!current) return
-    const currentPos: Position = { x: current.x, y: current.y }
-    if (!isValidMove(currentPos, message.destination, INN_MOVE_SPEED)) {
-      client.send('MOVE_REJECTED', { reason: 'out_of_range' })
+
+    const result = processMove({
+      currentPos: { x: current.x, y: current.y },
+      destination: message.destination,
+      maxSpeed: INN_MOVE_SPEED,
+      isWalkable: (pos) => isWalkable(THE_INN, pos),
+      npcs: this.state.npcs,
+      doors: this.state.doors,
+      isCombatActive: !!this._combat,
+    })
+
+    if (result.type === 'rejected') {
+      client.send('MOVE_REJECTED', { reason: result.reason })
       return
     }
-    if (!isWalkable(THE_INN, message.destination)) {
-      client.send('MOVE_REJECTED', { reason: 'blocked' })
-      return
-    }
-    current.direction = getMovementDirection(currentPos, message.destination)
-    current.x = message.destination.x
-    current.y = message.destination.y
+
+    // Apply position update
+    current.direction = result.direction
+    current.x = result.newPos.x
+    current.y = result.newPos.y
     this.broadcast('PLAYER_MOVED', { sessionId: client.sessionId, x: current.x, y: current.y, direction: current.direction })
 
-    if (!this._combat) {
-      // Auto-trigger dialog when player lands on NPC's front cell or adjacent to a door
-      const dest: Position = { x: current.x, y: current.y }
-      for (const npc of this.state.npcs) {
-        const front = getFrontCell({ x: npc.x, y: npc.y }, npc.direction)
-        if (dest.x === front.x && dest.y === front.y) {
-          client.send('INTERACTION_START', { type: 'npc', id: npc.id, name: npc.name, role: npc.role })
-          return
-        }
-      }
-      for (const door of this.state.doors) {
-        if (isAdjacent(dest, { x: door.x, y: door.y })) {
-          client.send('INTERACTION_START', { type: 'door', id: door.id, biomeId: door.biomeId, label: door.label })
-          return
-        }
-      }
+    if ('interaction' in result) {
+      client.send('INTERACTION_START', result.interaction)
+      return
     }
 
+    // encounterCheck: true — run enemy proximity check
     if (!this._combat) {
       const encounter = this.enemyManager.onPlayerMove(current.x, current.y)
       if (encounter) {

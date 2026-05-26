@@ -2,10 +2,9 @@ import type { Client } from '@colyseus/core'
 import { ExploreState, PlayerPosition, DoorEntity, EnemyEntity } from '../schemas/ExploreState'
 import { EncounterRoom } from './EncounterRoom'
 import { EnemyManager } from './EnemyManager'
-import { isValidMove, isAdjacent } from './logic/explore-logic'
+import { processMove } from './logic/move-handler'
 import { inventoryService } from '../db/inventory-service'
 import { dropTableService } from '../db/drop-table-service'
-import { getMovementDirection } from 'shared-types'
 import type { Position, SceneData, ActorState, CombatState, EncounterEvent, LootResult } from 'shared-types'
 import { ENEMY_SLASH } from './combat-constants'
 
@@ -211,31 +210,35 @@ export class BiomeRoom extends EncounterRoom {
   private async handleMove(client: Client, message: MoveMessage): Promise<void> {
     const current = this.state.players.get(client.sessionId)
     if (!current) return
-    const currentPos: Position = { x: current.x, y: current.y }
 
-    if (!isValidMove(currentPos, message.destination, BIOME_MOVE_SPEED)) {
-      client.send('MOVE_REJECTED', { reason: 'out_of_range' })
+    const result = processMove({
+      currentPos: { x: current.x, y: current.y },
+      destination: message.destination,
+      maxSpeed: BIOME_MOVE_SPEED,
+      isWalkable: isBiomeWalkable,
+      npcs: [],
+      doors: this.state.doors,
+      isCombatActive: !!this._combat,
+    })
+
+    if (result.type === 'rejected') {
+      client.send('MOVE_REJECTED', { reason: result.reason })
       return
     }
-    if (!isBiomeWalkable(message.destination)) {
-      client.send('MOVE_REJECTED', { reason: 'blocked' })
-      return
-    }
 
-    current.direction = getMovementDirection(currentPos, message.destination)
-    current.x = message.destination.x
-    current.y = message.destination.y
+    // Apply position update
+    current.direction = result.direction
+    current.x = result.newPos.x
+    current.y = result.newPos.y
     this.broadcast('PLAYER_MOVED', { sessionId: client.sessionId, x: current.x, y: current.y, direction: current.direction })
 
-    if (!this._combat) {
-      const dest: Position = { x: current.x, y: current.y }
-      for (const door of this.state.doors) {
-        if (isAdjacent(dest, { x: door.x, y: door.y })) {
-          client.send('INTERACTION_START', { type: 'door', id: door.id, biomeId: door.biomeId, label: door.label })
-          return
-        }
-      }
+    if ('interaction' in result) {
+      client.send('INTERACTION_START', result.interaction)
+      return
+    }
 
+    // encounterCheck: true — run enemy proximity check
+    if (!this._combat) {
       const encounter = this.enemyManager.onPlayerMove(current.x, current.y)
       if (encounter) {
         await this.startCombat(client, encounter)
