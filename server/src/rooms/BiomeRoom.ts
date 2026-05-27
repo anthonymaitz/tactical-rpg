@@ -87,11 +87,11 @@ export class BiomeRoom extends EncounterRoom {
   async onCreate(options: { biomeId?: string } = {}): Promise<void> {
     this._biomeId = options.biomeId ?? 'verdant-forest'
 
-    // Load spawn points (enemies) and scene chunks in parallel
+    // Load spawn points (enemies) and scene chunks in parallel — tables may not exist yet
     const [spawns, chunks] = await Promise.all([
-      getBiomeSpawns(this._biomeId),
-      chunkService.listChunks(this._biomeId),
-    ])
+      getBiomeSpawns(this._biomeId).catch(() => []),
+      chunkService.listChunks(this._biomeId).catch(() => []),
+    ]) as [Awaited<ReturnType<typeof getBiomeSpawns>>, Awaited<ReturnType<typeof chunkService.listChunks>>]
 
     this._spawnSlugMap = new Map(spawns.map(sp => [sp.id, sp.dropTableSlug]))
 

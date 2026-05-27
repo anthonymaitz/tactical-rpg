@@ -50,10 +50,10 @@ const bossEntries: DropEntry[] = [
 
 async function seed() {
   const tables = [
-    { slug: 'wolf',          entries: wolfEntries },
-    { slug: 'bandit',        entries: banditEntries },
-    { slug: 'forest-spirit', entries: forestSpiritEntries },
-    { slug: 'boss',          entries: bossEntries },
+    { slug: 'wolf',          name: 'Wolf',          entries: wolfEntries },
+    { slug: 'bandit',        name: 'Bandit',        entries: banditEntries },
+    { slug: 'forest-spirit', name: 'Forest Spirit', entries: forestSpiritEntries },
+    { slug: 'boss',          name: 'Boss',          entries: bossEntries },
   ]
 
   console.log('Seeding drop_tables…')
