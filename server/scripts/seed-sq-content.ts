@@ -3,13 +3,8 @@
  * Seed script: populates sq_classes, sq_abilities, sq_metadata from sampleContent.
  * Run once (or re-run to upsert): bun run server/scripts/seed-sq-content.ts
  */
-import { createClient } from '@supabase/supabase-js'
+import { sql } from '../src/db/pg'
 import { sampleContent } from '../../../simplequest/src/sample-content'
-
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 // ── Mechanical data for inCombat class abilities (merged from old STARTER_CLASSES) ──
 const MECHANICS: Record<string, { targetType: string; effect: string; diceNotation: object; statusEffects?: string[] }> = {
@@ -60,10 +55,13 @@ const CLASS_STATS = [
 
 async function seed() {
   console.log('Seeding sq_classes…')
-  const { error: classErr } = await supabase
-    .from('sq_classes')
-    .upsert(CLASS_STATS, { onConflict: 'id' })
-  if (classErr) throw classErr
+  for (const c of CLASS_STATS) {
+    await sql`
+      insert into sq_classes (id, die, max_hp, max_energy, speed)
+      values (${c.id}, ${c.die}, ${c.max_hp}, ${c.max_energy}, ${c.speed})
+      on conflict (id) do update set die = excluded.die, max_hp = excluded.max_hp, max_energy = excluded.max_energy, speed = excluded.speed
+    `
+  }
 
   console.log('Seeding sq_abilities…')
   const abilities = sampleContent.abilities.map((card) => {
@@ -83,10 +81,16 @@ async function seed() {
       status_effects: mech?.statusEffects ?? null,
     }
   })
-  const { error: abilityErr } = await supabase
-    .from('sq_abilities')
-    .upsert(abilities, { onConflict: 'id' })
-  if (abilityErr) throw abilityErr
+  for (const a of abilities) {
+    await sql`
+      insert into sq_abilities (id, title, body, context, source, energy_cost, target_type, effect, dice_notation, status_effects)
+      values (${a.id}, ${a.title}, ${a.body}, ${a.context}, ${a.source}, ${a.energy_cost}, ${a.target_type}, ${a.effect}, ${a.dice_notation ? sql.json(a.dice_notation) : null}, ${a.status_effects})
+      on conflict (id) do update set
+        title = excluded.title, body = excluded.body, context = excluded.context, source = excluded.source,
+        energy_cost = excluded.energy_cost, target_type = excluded.target_type, effect = excluded.effect,
+        dice_notation = excluded.dice_notation, status_effects = excluded.status_effects
+    `
+  }
 
   console.log('Seeding sq_metadata…')
   const metadata = [
@@ -98,12 +102,14 @@ async function seed() {
     { key: 'generalContent', value: sampleContent.generalContent },
     { key: 'deathContent',  value: sampleContent.deathContent },
   ]
-  const { error: metaErr } = await supabase
-    .from('sq_metadata')
-    .upsert(metadata, { onConflict: 'key' })
-  if (metaErr) throw metaErr
+  for (const m of metadata) {
+    await sql`
+      insert into sq_metadata (key, value) values (${m.key}, ${sql.json(m.value as object)})
+      on conflict (key) do update set value = excluded.value
+    `
+  }
 
   console.log('Done. Seeded', abilities.length, 'abilities,', CLASS_STATS.length, 'classes.')
 }
 
-seed().catch((e) => { console.error(e); process.exit(1) })
+seed().catch((e) => { console.error(e); process.exit(1) }).finally(() => sql.end())

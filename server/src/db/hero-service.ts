@@ -1,5 +1,5 @@
 // server/src/db/hero-service.ts
-import { supabase } from './supabase'
+import { sql } from './pg'
 import { applyLevelUp, getRecoveryEndsAt } from './hero-logic'
 import type { HeroRecord, GearSlots, AbilityDefinition } from 'shared-types'
 
@@ -37,23 +37,13 @@ function toHeroRecord(row: Record<string, unknown>): HeroRecord {
 
 export const heroService = {
   async getHero(heroId: string): Promise<HeroRecord | null> {
-    const { data, error } = await supabase
-      .from('heroes')
-      .select('*')
-      .eq('id', heroId)
-      .single()
-    if (error) return null
-    return toHeroRecord(data)
+    const [row] = await sql`select * from heroes where id = ${heroId}`
+    return row ? toHeroRecord(row) : null
   },
 
   async listHeroes(userId: string): Promise<HeroRecord[]> {
-    const { data, error } = await supabase
-      .from('heroes')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: true })
-    if (error) throw error
-    return (data ?? []).map(toHeroRecord)
+    const rows = await sql`select * from heroes where user_id = ${userId} order by created_at asc`
+    return rows.map(toHeroRecord)
   },
 
   async createHero(
@@ -63,100 +53,67 @@ export const heroService = {
     personality: HeroRecord['personality'],
     profession: string
   ): Promise<HeroRecord> {
-    const { data, error } = await supabase
-      .from('heroes')
-      .insert({
-        user_id: userId,
-        name,
-        character_class: hero.className,
-        personality,
-        profession,
-        die: hero.die,
-        max_hp: hero.maxHp,
-        max_energy: hero.maxEnergy,
-        speed: hero.speed,
-        abilities: hero.abilities,
-      })
-      .select()
-      .single()
-    if (error) throw error
-    return toHeroRecord(data)
+    const [row] = await sql`
+      insert into heroes (user_id, name, character_class, personality, profession, die, max_hp, max_energy, speed, abilities)
+      values (${userId}, ${name}, ${hero.className}, ${personality}, ${profession}, ${hero.die}, ${hero.maxHp}, ${hero.maxEnergy}, ${hero.speed}, ${sql.json(hero.abilities as never)})
+      returning *
+    `
+    return toHeroRecord(row)
   },
 
   async awardXp(heroId: string, xpGained: number): Promise<HeroRecord> {
-    const { data: existing, error: fetchErr } = await supabase
-      .from('heroes')
-      .select('*')
-      .eq('id', heroId)
-      .single()
-    if (fetchErr) throw fetchErr
+    const [existing] = await sql`select * from heroes where id = ${heroId}`
+    if (!existing) throw new Error('Hero not found')
 
     const current = toHeroRecord(existing)
     const withXp = { ...current, xp: current.xp + xpGained }
     const { newLevel, newMaxHp, newXp } = applyLevelUp(withXp)
 
-    const { data, error } = await supabase
-      .from('heroes')
-      .update({ xp: newXp, level: newLevel, max_hp: newMaxHp })
-      .eq('id', heroId)
-      .select()
-      .single()
-    if (error) throw error
-    return toHeroRecord(data)
+    const [row] = await sql`
+      update heroes set xp = ${newXp}, level = ${newLevel}, max_hp = ${newMaxHp}
+      where id = ${heroId}
+      returning *
+    `
+    return toHeroRecord(row)
   },
 
   async equipGear(heroId: string, slot: keyof GearSlots, itemName: string | null): Promise<HeroRecord> {
-    const { data: existing, error: fetchErr } = await supabase
-      .from('heroes')
-      .select('gear')
-      .eq('id', heroId)
-      .single()
-    if (fetchErr) throw fetchErr
+    const [existing] = await sql`select gear from heroes where id = ${heroId}`
+    if (!existing) throw new Error('Hero not found')
 
     const gear: GearSlots = { ...(existing.gear as GearSlots), [slot]: itemName }
-    const { data, error } = await supabase
-      .from('heroes')
-      .update({ gear })
-      .eq('id', heroId)
-      .select()
-      .single()
-    if (error) throw error
-    return toHeroRecord(data)
+    const [row] = await sql`
+      update heroes set gear = ${sql.json(gear)} where id = ${heroId}
+      returning *
+    `
+    return toHeroRecord(row)
   },
 
   async setRecovering(heroId: string, level: number): Promise<HeroRecord> {
-    const { data, error } = await supabase
-      .from('heroes')
-      .update({ recovery_ends_at: getRecoveryEndsAt(level) })
-      .eq('id', heroId)
-      .select()
-      .single()
-    if (error) throw error
-    return toHeroRecord(data)
+    const [row] = await sql`
+      update heroes set recovery_ends_at = ${getRecoveryEndsAt(level)} where id = ${heroId}
+      returning *
+    `
+    return toHeroRecord(row)
+  },
+
+  async updateRecoveryEndsAt(heroId: string, recoveryEndsAt: string): Promise<void> {
+    await sql`update heroes set recovery_ends_at = ${recoveryEndsAt} where id = ${heroId}`
   },
 
   async clearRecovery(heroId: string): Promise<HeroRecord> {
-    const { data, error } = await supabase
-      .from('heroes')
-      .update({ recovery_ends_at: null })
-      .eq('id', heroId)
-      .select()
-      .single()
-    if (error) throw error
-    return toHeroRecord(data)
+    const [row] = await sql`
+      update heroes set recovery_ends_at = null where id = ${heroId}
+      returning *
+    `
+    return toHeroRecord(row)
   },
 
   async updateCurrentHp(heroId: string, currentHp: number): Promise<void> {
-    await supabase
-      .from('heroes')
-      .update({ current_hp: currentHp })
-      .eq('id', heroId)
+    await sql`update heroes set current_hp = ${currentHp} where id = ${heroId}`
   },
 
   async restoreHp(heroId: string): Promise<void> {
-    await supabase
-      .from('heroes')
-      .update({ current_hp: null })
-      .eq('id', heroId)
+    await sql`update heroes set current_hp = null where id = ${heroId}`
   },
 }

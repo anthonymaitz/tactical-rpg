@@ -3,7 +3,7 @@ import { joinRoom } from './useGameServer'
 import type { Room } from 'colyseus.js'
 import type { Position, SceneData, EncounterEvent, CombatState, Action, ActionResult, LootResult } from 'shared-types'
 import type { CharacterData } from 'simplequest-hud'
-import { supabase } from '../lib/supabase'
+import { auth } from '../lib/auth'
 
 // Server constants — must match BiomeRoom.ts SPAWN_X / SPAWN_Y - 2
 const BIOME_SPAWN = { x: 50, y: 48 }
@@ -72,7 +72,7 @@ export function createBiomeRoom(
 
     if (!t || !bid) return
 
-    supabase.auth.getSession().then(({ data }) => {
+    auth.getSession().then(({ data }) => {
       const freshToken = data.session?.access_token ?? t
       return joinRoom<BiomeState>('BiomeRoom', { token: freshToken, heroIds: ids, biomeId: bid })
     }).then((r) => {

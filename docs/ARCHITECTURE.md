@@ -45,7 +45,7 @@ The game **orchestrates** three external modules — it does not implement rende
 │  │  sq-content    scene-service      service        │    │
 │  └──────────────────────────┬──────────────────────┘    │
 │                             ▼                           │
-│                        Supabase (Postgres + Auth)        │
+│                   Self-hosted Postgres (homelab)          │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -116,7 +116,7 @@ Shared between ExploreRoom and BiomeRoom:
 
 ### HTTP routes (Hono)
 
-All routes require a Supabase Bearer JWT (verified via `authMiddleware` from `server/src/middleware.ts`).
+All routes require a Bearer JWT issued by this server's own `/auth/login` or `/auth/signup` (verified via `authMiddleware` from `server/src/middleware.ts`).
 
 | Route | Purpose |
 |-------|---------|
@@ -231,10 +231,11 @@ Client → POST /inventory/upgrade-star { heroId }
 
 ## Database
 
-All tables live in Supabase (Postgres). Migrations are in `server/src/db/migrations/`.
+Self-hosted Postgres — one database (`tactical_rpg`) on the homelab's shared instance. Migrations are in `server/src/db/migrations/`; `003_self_hosted_bootstrap.sql` is the full schema for a fresh instance (001/002 only ever ran against the retired Supabase project).
 
 | Table | Purpose |
 |-------|---------|
+| `users` | Self-hosted auth — email + password hash. |
 | `heroes` | One row per hero. Owns class stats, gear, recovery timer, star rating. |
 | `player_inventory` | One row per user. Gold, potions, star fragments, decor shards, builder props. |
 | `hero_inventory` | One row per hero. Potions carried in the field. |
@@ -242,11 +243,11 @@ All tables live in Supabase (Postgres). Migrations are in `server/src/db/migrati
 | `sq_classes` | Class stat blocks (die, maxHp, maxEnergy, speed). |
 | `sq_metadata` | Key-value store for SQ content arrays (personalities, professions, etc.). |
 | `drop_tables` | Loot tables by slug. Entries are JSONB `{ item, weight, min_qty, max_qty }`. |
-| `scenes` | Designer-authored scene data (from BuildScreen). |
+| `scenes` | Designer-authored scene data (from BuildScreen), served via `/scenes/:slug`. |
 
-**RLS:** Only `heroes` has RLS enabled in migrations (`user_id = auth.uid()`). Other tables are managed by server-side calls that bypass RLS via the service role key.
+**No RLS.** Ownership is enforced in the server's route/service layer (e.g. `heroRoutes` checks `hero.userId === userId` before mutating) — there's no PostgREST auto-API exposing tables directly, so RLS doesn't apply the way it did under Supabase.
 
-**Seed data:** Run `pnpm --filter server tsx src/scripts/seed-sq-content.ts` to populate `sq_abilities`, `sq_classes`, `sq_metadata`. The `drop_tables` rows (`wolf`, `bandit`, `forest-spirit`) must be added manually in the Supabase dashboard or via the Supabase MCP tool — they are not yet in a seed script.
+**Seed data:** Run `bun run server/scripts/seed-sq-content.ts` to populate `sq_abilities`, `sq_classes`, `sq_metadata`. `drop_tables` (`wolf`, `bandit`, `forest-spirit`, `boss`) and the `inn-main` scene were migrated once from the old Supabase project's hand-authored data — see `server/src/db/migrations/003_self_hosted_bootstrap.sql`'s comment for context; there's no seed script for them since they were one-time content, not generated data.
 
 ---
 
@@ -309,14 +310,12 @@ pnpm test
 lsof -ti:2567 | xargs kill -9
 ```
 
-Environment variables required in `.env` (repo root) and `apps/game/.env`:
+Environment variables required in `.env` (repo root — `server/.env` symlinks to it) and `apps/game/.env`:
 ```
-SUPABASE_URL=https://rmmdtegsomzejjioolre.supabase.co
-SUPABASE_ANON_KEY=...
-SUPABASE_SERVICE_ROLE_KEY=...   # server only
-VITE_SUPABASE_URL=...           # game client
-VITE_SUPABASE_ANON_KEY=...      # game client
+DATABASE_URL=postgres://postgres:...@localhost:5432/tactical_rpg   # server only
+AUTH_JWT_SECRET=...                                                # server only
 VITE_API_URL=http://localhost:3000
+VITE_SERVER_URL=ws://localhost:2567
 ```
 
 ---

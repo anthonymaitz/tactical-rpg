@@ -1,4 +1,4 @@
-import { supabase } from './supabase'
+import { sql } from './pg'
 import type { PlayerInventory, HeroInventory, LootResult } from 'shared-types'
 import { STAR_UPGRADE_COSTS } from 'shared-types'
 
@@ -22,20 +22,14 @@ function toHeroInventory(row: Record<string, unknown>): HeroInventory {
 
 export const inventoryService = {
   async getOrCreate(userId: string): Promise<PlayerInventory> {
-    const { data, error } = await supabase
-      .from('player_inventory')
-      .select('*')
-      .eq('user_id', userId)
-      .single()
+    const [row] = await sql`select * from player_inventory where user_id = ${userId}`
+    if (row) return toPlayerInventory(row)
 
-    if (!error && data) return toPlayerInventory(data)
-
-    const { data: created, error: insertErr } = await supabase
-      .from('player_inventory')
-      .insert({ user_id: userId })
-      .select()
-      .single()
-    if (insertErr) throw insertErr
+    const [created] = await sql`
+      insert into player_inventory (user_id) values (${userId})
+      on conflict (user_id) do update set user_id = excluded.user_id
+      returning *
+    `
     return toPlayerInventory(created)
   },
 
@@ -48,52 +42,41 @@ export const inventoryService = {
       mergedProps[propId] = (mergedProps[propId] ?? 0) + 1
     }
 
-    const { data, error } = await supabase
-      .from('player_inventory')
-      .update({
-        gold: inv.gold + loot.gold,
-        health_potions: inv.healthPotions + loot.healthPotions,
-        star_fragments: inv.starFragments + loot.starFragments,
-        decor_shards: inv.decorShards + loot.decorShards,
-        builder_props: mergedProps,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('user_id', userId)
-      .select()
-      .single()
-    if (error) throw error
-    return toPlayerInventory(data)
+    const [row] = await sql`
+      update player_inventory set
+        gold = ${inv.gold + loot.gold},
+        health_potions = ${inv.healthPotions + loot.healthPotions},
+        star_fragments = ${inv.starFragments + loot.starFragments},
+        decor_shards = ${inv.decorShards + loot.decorShards},
+        builder_props = ${sql.json(mergedProps)},
+        updated_at = now()
+      where user_id = ${userId}
+      returning *
+    `
+    return toPlayerInventory(row)
   },
 
   async getHeroInventory(heroId: string): Promise<HeroInventory> {
-    const { data, error } = await supabase
-      .from('hero_inventory')
-      .select('*')
-      .eq('hero_id', heroId)
-      .single()
+    const [row] = await sql`select * from hero_inventory where hero_id = ${heroId}`
+    if (row) return toHeroInventory(row)
 
-    if (!error && data) return toHeroInventory(data)
-
-    const { data: created, error: insertErr } = await supabase
-      .from('hero_inventory')
-      .insert({ hero_id: heroId })
-      .select()
-      .single()
-    if (insertErr) throw insertErr
+    const [created] = await sql`
+      insert into hero_inventory (hero_id) values (${heroId})
+      on conflict (hero_id) do update set hero_id = excluded.hero_id
+      returning *
+    `
     return toHeroInventory(created)
   },
 
   async useHeroPotion(heroId: string): Promise<HeroInventory> {
     const inv = await this.getHeroInventory(heroId)
     if (inv.healthPotions <= 0) throw new Error('No potions')
-    const { data, error } = await supabase
-      .from('hero_inventory')
-      .update({ health_potions: inv.healthPotions - 1, updated_at: new Date().toISOString() })
-      .eq('hero_id', heroId)
-      .select()
-      .single()
-    if (error) throw error
-    return toHeroInventory(data)
+    const [row] = await sql`
+      update hero_inventory set health_potions = ${inv.healthPotions - 1}, updated_at = now()
+      where hero_id = ${heroId}
+      returning *
+    `
+    return toHeroInventory(row)
   },
 
   async movePotion(
@@ -108,40 +91,24 @@ export const inventoryService = {
 
     if (direction === 'to-hero') {
       if (inv.healthPotions <= 0) throw new Error('No potions in stash')
-      const [{ data: d1, error: e1 }, { data: d2, error: e2 }] = await Promise.all([
-        supabase.from('player_inventory')
-          .update({ health_potions: inv.healthPotions - 1, updated_at: new Date().toISOString() })
-          .eq('user_id', userId).select().single(),
-        supabase.from('hero_inventory')
-          .update({ health_potions: heroInv.healthPotions + 1, updated_at: new Date().toISOString() })
-          .eq('hero_id', heroId).select().single(),
+      const [[d1], [d2]] = await Promise.all([
+        sql`update player_inventory set health_potions = ${inv.healthPotions - 1}, updated_at = now() where user_id = ${userId} returning *`,
+        sql`update hero_inventory set health_potions = ${heroInv.healthPotions + 1}, updated_at = now() where hero_id = ${heroId} returning *`,
       ])
-      if (e1) throw e1
-      if (e2) throw e2
-      return { inventory: toPlayerInventory(d1!), heroInventory: toHeroInventory(d2!) }
+      return { inventory: toPlayerInventory(d1), heroInventory: toHeroInventory(d2) }
     } else {
       if (heroInv.healthPotions <= 0) throw new Error('No potions on hero')
-      const [{ data: d1, error: e1 }, { data: d2, error: e2 }] = await Promise.all([
-        supabase.from('player_inventory')
-          .update({ health_potions: inv.healthPotions + 1, updated_at: new Date().toISOString() })
-          .eq('user_id', userId).select().single(),
-        supabase.from('hero_inventory')
-          .update({ health_potions: heroInv.healthPotions - 1, updated_at: new Date().toISOString() })
-          .eq('hero_id', heroId).select().single(),
+      const [[d1], [d2]] = await Promise.all([
+        sql`update player_inventory set health_potions = ${inv.healthPotions + 1}, updated_at = now() where user_id = ${userId} returning *`,
+        sql`update hero_inventory set health_potions = ${heroInv.healthPotions - 1}, updated_at = now() where hero_id = ${heroId} returning *`,
       ])
-      if (e1) throw e1
-      if (e2) throw e2
-      return { inventory: toPlayerInventory(d1!), heroInventory: toHeroInventory(d2!) }
+      return { inventory: toPlayerInventory(d1), heroInventory: toHeroInventory(d2) }
     }
   },
 
   async upgradeHeroStar(userId: string, heroId: string): Promise<{ starRating: number; inventory: PlayerInventory }> {
-    const { data: heroRow, error: heroErr } = await supabase
-      .from('heroes')
-      .select('star_rating, user_id')
-      .eq('id', heroId)
-      .single()
-    if (heroErr || !heroRow) throw new Error('Hero not found')
+    const [heroRow] = await sql`select star_rating, user_id from heroes where id = ${heroId}`
+    if (!heroRow) throw new Error('Hero not found')
     if (heroRow.user_id !== userId) throw new Error('Not your hero')
 
     const currentStar = (heroRow.star_rating as number) ?? 0
@@ -152,15 +119,11 @@ export const inventoryService = {
     const inv = await this.getOrCreate(userId)
     if (inv.starFragments < cost) throw new Error(`Need ${cost} star fragments`)
 
-    const [{ error: heroUpErr }, { data: invData, error: invErr }] = await Promise.all([
-      supabase.from('heroes').update({ star_rating: nextStar }).eq('id', heroId),
-      supabase.from('player_inventory')
-        .update({ star_fragments: inv.starFragments - cost, updated_at: new Date().toISOString() })
-        .eq('user_id', userId).select().single(),
+    const [, [invRow]] = await Promise.all([
+      sql`update heroes set star_rating = ${nextStar} where id = ${heroId}`,
+      sql`update player_inventory set star_fragments = ${inv.starFragments - cost}, updated_at = now() where user_id = ${userId} returning *`,
     ])
-    if (heroUpErr) throw heroUpErr
-    if (invErr) throw invErr
 
-    return { starRating: nextStar, inventory: toPlayerInventory(invData!) }
+    return { starRating: nextStar, inventory: toPlayerInventory(invRow) }
   },
 }

@@ -1,21 +1,27 @@
-import { supabase } from '../lib/supabase'
+import { auth } from '../lib/auth'
 import type { SceneData } from 'shared-types'
 
+const API = import.meta.env.VITE_API_URL
+
 export async function fetchScene(slug: string): Promise<SceneData | null> {
-  const { data, error } = await supabase
-    .from('scenes')
-    .select('scene_data')
-    .eq('slug', slug)
-    .maybeSingle()
-  if (error || !data) return null
-  return data.scene_data as SceneData
+  const res = await fetch(`${API}/scenes/${slug}`)
+  if (!res.ok) return null
+  const data = await res.json()
+  return (data as SceneData | null) ?? null
 }
 
 export async function upsertScene(slug: string, sceneData: SceneData): Promise<void> {
-  const { data: { user } } = await supabase.auth.getUser()
-  const { error } = await supabase.from('scenes').upsert(
-    { slug, scene_data: sceneData, created_by: user?.id, updated_at: new Date().toISOString() },
-    { onConflict: 'slug' },
-  )
-  if (error) throw new Error(error.message)
+  const { data } = await auth.getSession()
+  const token = data.session?.access_token
+  if (!token) throw new Error('Not authenticated')
+
+  const res = await fetch(`${API}/scenes/${slug}`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sceneData }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }))
+    throw new Error((err as { error: string }).error)
+  }
 }

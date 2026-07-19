@@ -1,10 +1,12 @@
 import { describe, it, expect, vi } from 'vitest'
 
-vi.mock('../db/supabase', () => ({
-  supabase: {
-    from: vi.fn(() => ({ select: vi.fn(), insert: vi.fn(), update: vi.fn(), delete: vi.fn() })),
-  },
-}))
+process.env.AUTH_JWT_SECRET ??= 'test-secret-do-not-use-in-prod'
+
+vi.mock('../db/pg', () => {
+  const sql = vi.fn(() => Promise.resolve([])) as unknown as { (): Promise<unknown[]>; json: (v: unknown) => unknown }
+  sql.json = (v: unknown) => v
+  return { sql }
+})
 
 import { createHttpApp } from '../http-app'
 

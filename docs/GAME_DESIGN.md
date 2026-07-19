@@ -262,7 +262,7 @@ Moving potions between stash and hero is done via the **Inventory Panel** (right
 
 ### Drop tables
 
-Each enemy type has a named drop table in the `drop_tables` Supabase table. Each entry has a weight, min/max quantity, and item type. After combat, the server rolls drops per enemy and awards the total loot to all participants.
+Each enemy type has a named drop table in the `drop_tables` Postgres table. Each entry has a weight, min/max quantity, and item type. After combat, the server rolls drops per enemy and awards the total loot to all participants.
 
 ```
 Current enemy → drop table slugs:
@@ -271,7 +271,7 @@ Current enemy → drop table slugs:
   Forest Spirit → 'forest-spirit'
 ```
 
-Drop table rows must exist in Supabase. Currently managed in the dashboard (not in a migration seed script yet).
+Drop table rows must exist in `drop_tables`. Not yet in a seed script — the current rows (`wolf`, `bandit`, `forest-spirit`, `boss`) were migrated once from the old Supabase project's dashboard-managed data (see `server/src/db/migrations/003_self_hosted_bootstrap.sql`).
 
 ---
 

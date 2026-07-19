@@ -1,4 +1,4 @@
-import { supabase } from './supabase'
+import { sql } from './pg'
 import type { SimpleQuestContent } from 'simple-quest'
 
 export type SqClass = {
@@ -23,15 +23,13 @@ export type SqAbility = {
 }
 
 export async function getSqContent(): Promise<SimpleQuestContent> {
-  const [{ data: meta, error: metaErr }, { data: abilities, error: abilityErr }] = await Promise.all([
-    supabase.from('sq_metadata').select('key, value'),
-    supabase.from('sq_abilities').select('*').order('source').order('context'),
+  const [meta, abilities] = await Promise.all([
+    sql`select key, value from sq_metadata`,
+    sql`select * from sq_abilities order by source, context`,
   ])
-  if (metaErr) throw metaErr
-  if (abilityErr) throw abilityErr
 
   const m: Record<string, unknown> = {}
-  for (const row of meta ?? []) m[row.key] = row.value
+  for (const row of meta) m[row.key] = row.value
 
   return {
     personalities: m.personalities as string[],
@@ -41,7 +39,7 @@ export async function getSqContent(): Promise<SimpleQuestContent> {
     descriptions: m.descriptions as Record<string, string>,
     generalContent: m.generalContent as string,
     deathContent: m.deathContent as string,
-    abilities: (abilities ?? []).map((a) => ({
+    abilities: abilities.map((a) => ({
       title: a.title,
       body: a.body,
       context: a.context as never,
@@ -52,29 +50,20 @@ export async function getSqContent(): Promise<SimpleQuestContent> {
 }
 
 export async function getSqClass(classId: string): Promise<SqClass | null> {
-  const { data, error } = await supabase
-    .from('sq_classes')
-    .select('*')
-    .eq('id', classId)
-    .single()
-  if (error || !data) return null
+  const [row] = await sql`select * from sq_classes where id = ${classId}`
+  if (!row) return null
   return {
-    id: data.id,
-    die: data.die,
-    maxHp: data.max_hp,
-    maxEnergy: data.max_energy,
-    speed: data.speed,
+    id: row.id,
+    die: row.die,
+    maxHp: row.max_hp,
+    maxEnergy: row.max_energy,
+    speed: row.speed,
   }
 }
 
 export async function getSqClassAbilities(classId: string): Promise<SqAbility[]> {
-  const { data, error } = await supabase
-    .from('sq_abilities')
-    .select('*')
-    .eq('source', classId)
-    .eq('context', 'inCombat')
-  if (error) throw error
-  return (data ?? []).map((a) => ({
+  const rows = await sql`select * from sq_abilities where source = ${classId} and context = 'inCombat'`
+  return rows.map((a) => ({
     id: a.id,
     title: a.title,
     body: a.body,

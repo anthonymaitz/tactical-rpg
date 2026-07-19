@@ -52,10 +52,10 @@ Walking skeleton complete (plans 01–09 + all 4 sub-projects). `pnpm typecheck`
 
 - Inn hub: heroes walk, NPC dialog on landing, door placeholders
 - In-place combat: proximity → ENCOUNTER → turn-based combat in ExploreRoom
-- SimpleQuest HUD: locked during play, Supabase is source of truth for all SQ content
+- SimpleQuest HUD: locked during play, Postgres is source of truth for all SQ content
 - Hero creation: class/profession/personality from DB, abilities seeded from simplequest sample content
 - Ability targeting, used-state (resets with energy), floating doobers on damage/heal
-- BuildScreen (`/build/:slug`) for designer-authored scenes saved to Supabase
+- BuildScreen (`/build/:slug`) for designer-authored scenes saved via the server's `/scenes` API
 
 ## Milestone status — Biome Entry (complete)
 
@@ -72,12 +72,15 @@ Specs: `docs/superpowers/specs/2026-04-20-game-design.md`
 
 ## Next milestone — TBD
 
-## Supabase
+## Self-hosted backend
 
-URL: `https://rmmdtegsomzejjioolre.supabase.co`
-Credentials: `.env` (monorepo root) and `apps/game/.env`
-JWT: ES256 asymmetric — use `createRemoteJWKSet` from `jose`, NOT `SUPABASE_JWT_SECRET`.
-Email confirmation: disable in Supabase dashboard for local dev.
+Postgres + auth are self-hosted (no Supabase, no Railway) as of 2026-07-19.
+
+- **Database**: plain Postgres, reachable at `postgres:5432/tactical_rpg` on the homelab's shared instance (one DB per service, same as outline/authentik/opencut). `server/src/db/pg.ts` wraps the `postgres` client; db-service files use raw SQL, no PostgREST/auto-API layer.
+- **Auth**: the Hono server issues its own HS256 JWTs (`server/src/auth.ts`, `jose` + `Bun.password` for hashing) against a `users` table — no external identity provider. `POST /auth/signup`, `POST /auth/login`.
+- **Env vars** (server only, loaded from `.env` at the repo root via the `server/.env -> ../.env` symlink — Bun only auto-loads `.env` from cwd): `DATABASE_URL`, `AUTH_JWT_SECRET`. See `.env.example`.
+- **Schema**: `server/src/db/migrations/003_self_hosted_bootstrap.sql` is the full schema for a fresh instance (001/002 only ever ran against the retired Supabase project and rely on `auth.uid()`, so they aren't replayed here).
+- Client no longer imports `@supabase/supabase-js` at all — `apps/game/src/lib/auth.ts` mirrors the bit of the `supabase.auth` interface the app used, backed by the two endpoints above.
 
 ## pnpm workspace links
 

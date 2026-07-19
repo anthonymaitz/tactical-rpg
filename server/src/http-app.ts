@@ -5,6 +5,8 @@ import { heroRoutes } from './routes/heroes'
 import { contentRoutes } from './routes/content'
 import { inventoryRoutes } from './routes/inventory'
 import { debugRoutes } from './routes/debug'
+import { authRoutes } from './routes/auth'
+import { sceneRoutes } from './routes/scenes'
 
 export function createHttpApp(): Hono {
   const app = new Hono()
@@ -13,7 +15,7 @@ export function createHttpApp(): Hono {
       if (!origin) return '*'
       if (origin.startsWith('http://localhost:')) return origin
       if (origin === 'https://anthony.maitz.work') return origin
-      if (origin.endsWith('.railway.app')) return origin
+      if (origin === 'https://tactical.maitz.casa') return origin
       return null
     }
   }))
@@ -22,5 +24,7 @@ export function createHttpApp(): Hono {
   app.route('/content', contentRoutes)
   app.route('/inventory', inventoryRoutes)
   app.route('/debug', debugRoutes)
+  app.route('/auth', authRoutes)
+  app.route('/scenes', sceneRoutes)
   return app
 }

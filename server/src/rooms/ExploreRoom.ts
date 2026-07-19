@@ -5,7 +5,7 @@ import { EnemyManager } from './EnemyManager'
 import { InPlaceCombatEngine } from './InPlaceCombatEngine'
 import { isValidMove, isWalkable, isAdjacent, getFrontCell, getMovementDirection } from './logic/explore-logic'
 import { heroService } from '../db/hero-service'
-import { supabase } from '../db/supabase'
+import { fetchScene } from '../db/scene-service'
 import { THE_INN, generateSceneFromInn } from 'shared-types'
 import type { Position, SceneData, ActorState, EncounterEvent } from 'shared-types'
 import { weaponDamageBonus, ENEMY_SLASH } from './combat-constants'
@@ -28,16 +28,13 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
   async onCreate(): Promise<void> {
     this.setState(new ExploreState())
 
-    const { data, error } = await supabase
-      .from('scenes')
-      .select('scene_data')
-      .eq('slug', SCENE_SLUG)
-      .maybeSingle()
-
-    if (error) {
-      console.warn(`[ExploreRoom] Failed to fetch scene '${SCENE_SLUG}':`, error.message)
-    } else if (data?.scene_data && ((data.scene_data as SceneData).tokens?.length ?? 0) > 0) {
-      this._sceneData = data.scene_data as SceneData
+    try {
+      const scene = await fetchScene(SCENE_SLUG)
+      if (scene && (scene.tokens?.length ?? 0) > 0) {
+        this._sceneData = scene
+      }
+    } catch (err) {
+      console.warn(`[ExploreRoom] Failed to fetch scene '${SCENE_SLUG}':`, err instanceof Error ? err.message : err)
     }
 
     for (const token of this._sceneData.tokens ?? []) {
@@ -471,12 +468,7 @@ export class ExploreRoom extends BaseRoom<ExploreState> {
       const recoveryEndsAt = new Date(Date.now() + RECOVERY_HOURS * 60 * 60 * 1000).toISOString()
       const ghostHeroes = Object.values(cs.actors).filter(a => !a.isNPC && a.isGhost)
       await Promise.all(
-        ghostHeroes.map(hero =>
-          supabase
-            .from('heroes')
-            .update({ recovery_ends_at: recoveryEndsAt })
-            .eq('id', hero.id)
-        )
+        ghostHeroes.map(hero => heroService.updateRecoveryEndsAt(hero.id, recoveryEndsAt))
       )
       this.broadcast('COMBAT_END', { result: 'lose', recoveryEndsAt })
     }

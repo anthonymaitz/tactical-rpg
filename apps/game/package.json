@@ -9,7 +9,6 @@
   },
   "dependencies": {
     "@solidjs/router": "^0.16.1",
-    "@supabase/supabase-js": "^2.104.0",
     "click-comics": "workspace:*",
     "colyseus.js": "^0.15.0",
     "playsets": "workspace:*",

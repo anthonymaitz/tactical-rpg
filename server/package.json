@@ -9,9 +9,9 @@
     "@colyseus/core": "^0.15.0",
     "@colyseus/ws-transport": "^0.15.0",
     "@colyseus/schema": "^2.0.0",
-    "@supabase/supabase-js": "^2.104.0",
     "hono": "^4.0.0",
     "jose": "^5.0.0",
+    "postgres": "^3.4.9",
     "rules-engine": "workspace:*",
     "shared-types": "workspace:*"
   },

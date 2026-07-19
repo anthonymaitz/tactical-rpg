@@ -1,5 +1,5 @@
 import { createSignal, createEffect, For, Show } from 'solid-js'
-import { supabase } from '../lib/supabase'
+import { auth } from '../lib/auth'
 import type { HeroRecord, PlayerInventory } from 'shared-types'
 
 const API = import.meta.env.VITE_API_URL
@@ -25,7 +25,7 @@ export function DebugScreen() {
   const [amounts, setAmounts] = createSignal({ gold: 100, healthPotions: 5, starFragments: 10, decorShards: 10 })
 
   createEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
+    auth.getSession().then(({ data }) => {
       const t = data.session?.access_token ?? null
       setToken(t)
       if (t) {

@@ -2,14 +2,12 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@solidjs/testing-library'
 import App from '../App'
 
-vi.mock('../lib/supabase', () => ({
-  supabase: {
-    auth: {
-      signInWithPassword: vi.fn(),
-      signUp: vi.fn(),
-      getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
-      onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
-    },
+vi.mock('../lib/auth', () => ({
+  auth: {
+    signInWithPassword: vi.fn(),
+    signUp: vi.fn(),
+    getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
+    onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
   },
 }))
 

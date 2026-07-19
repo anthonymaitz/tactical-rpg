@@ -1,6 +1,6 @@
 import { createSignal, onMount, onCleanup, For, Show, Switch, Match } from 'solid-js'
 import { useNavigate } from '@solidjs/router'
-import { supabase } from '../lib/supabase'
+import { auth } from '../lib/auth'
 import { createHeroes } from '../hooks/useHeroes'
 import { isRecovering } from 'shared-types'
 import type { HeroRecord, Personality, Profession } from 'shared-types'
@@ -29,13 +29,13 @@ export function ConnectScreen() {
   const content = useContent()
 
   onMount(() => {
-    supabase.auth.getSession().then(({ data }) => {
+    auth.getSession().then(({ data }) => {
       if (data.session) {
         setAccessToken(data.session.access_token)
         setView('roster')
       }
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = auth.onAuthStateChange((_event, session) => {
       if (session) setAccessToken(session.access_token)
     })
     onCleanup(() => subscription.unsubscribe())
@@ -44,9 +44,9 @@ export function ConnectScreen() {
   async function handleAuth() {
     setAuthLoading(true)
     setAuthError(null)
-    const { data, error } = await supabase.auth.signInWithPassword({ email: email(), password: password() })
+    const { data, error } = await auth.signInWithPassword({ email: email(), password: password() })
     if (error || !data.session) {
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email: email(), password: password() })
+      const { data: signUpData, error: signUpError } = await auth.signUp({ email: email(), password: password() })
       if (signUpError || !signUpData.session) {
         setAuthError(signUpError?.message ?? 'Authentication failed')
         setAuthLoading(false)

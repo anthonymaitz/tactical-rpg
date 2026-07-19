@@ -2,7 +2,6 @@
 import { Hono } from 'hono'
 import { heroService } from '../db/hero-service'
 import { getSqClass, getSqClassAbilities, getSqContent } from '../db/sq-content'
-import { supabase } from '../db/supabase'
 import { authMiddleware } from '../middleware'
 
 export const heroRoutes = new Hono<{ Variables: { userId: string } }>()
@@ -64,8 +63,8 @@ heroRoutes.post('/', async (c) => {
 heroRoutes.patch('/:id/gear', async (c) => {
   const heroId = c.req.param('id')
   const userId = c.get('userId') as string
-  const { data: ownerCheck } = await supabase.from('heroes').select('user_id').eq('id', heroId).single()
-  if (!ownerCheck || ownerCheck.user_id !== userId) return c.json({ error: 'Not found' }, 404)
+  const existing = await heroService.getHero(heroId)
+  if (!existing || existing.userId !== userId) return c.json({ error: 'Not found' }, 404)
   const body = await c.req.json<{ slot: string; item: string | null }>()
   const validSlots = ['weapon', 'offhand', 'armor', 'trinket']
   if (!validSlots.includes(body.slot)) return c.json({ error: `Invalid slot: ${body.slot}` }, 400)

@@ -4,7 +4,7 @@ import type { Room } from 'colyseus.js'
 import { THE_INN } from 'shared-types'
 import type { Position, SceneData, EncounterEvent, CombatState, Action, ActionResult } from 'shared-types'
 import type { CharacterData } from 'simplequest-hud'
-import { supabase } from '../lib/supabase'
+import { auth } from '../lib/auth'
 
 type PlayerPosition = { x: number; y: number; characterId: string; direction: string; onChange: (cb: () => void) => void }
 type NpcEntity = { id: string; name: string; role: string; x: number; y: number; direction: string }
@@ -71,7 +71,7 @@ export function createExploreRoom(token: () => string | null, heroIds: () => str
 
     if (!t) return
 
-    supabase.auth.getSession().then(({ data }) => {
+    auth.getSession().then(({ data }) => {
       const freshToken = data.session?.access_token ?? t
       return joinRoom<ExploreState>('ExploreRoom', { token: freshToken, heroIds: ids })
     }).then((r) => {

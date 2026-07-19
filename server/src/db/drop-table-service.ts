@@ -1,4 +1,4 @@
-import { supabase } from './supabase'
+import { sql } from './pg'
 import type { LootResult, ItemType } from 'shared-types'
 
 interface DropEntry {
@@ -26,16 +26,12 @@ function pickItem(entries: DropEntry[]): DropEntry | null {
 
 export const dropTableService = {
   async rollDrops(slug: string): Promise<LootResult> {
-    const { data, error } = await supabase
-      .from('drop_tables')
-      .select('entries')
-      .eq('slug', slug)
-      .single()
+    const [row] = await sql`select entries from drop_tables where slug = ${slug}`
 
     const result: LootResult = { gold: 0, healthPotions: 0, starFragments: 0, decorShards: 0, builderPropIds: [] }
-    if (error || !data) return result
+    if (!row) return result
 
-    const entries = data.entries as DropEntry[]
+    const entries = row.entries as DropEntry[]
     const picked = pickItem(entries)
     if (!picked) return result
 

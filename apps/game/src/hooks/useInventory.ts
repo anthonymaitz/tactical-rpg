@@ -1,6 +1,6 @@
 import { createSignal, createEffect, on } from 'solid-js'
 import type { PlayerInventory, HeroInventory } from 'shared-types'
-import { supabase } from '../lib/supabase'
+import { auth } from '../lib/auth'
 
 const API = import.meta.env.VITE_API_URL
 
@@ -17,7 +17,7 @@ async function apiFetch<T>(path: string, token: string, init?: RequestInit): Pro
 }
 
 async function freshToken(fallback: string): Promise<string> {
-  const { data } = await supabase.auth.getSession()
+  const { data } = await auth.getSession()
   return data.session?.access_token ?? fallback
 }
 

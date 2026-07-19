@@ -7,7 +7,6 @@ import { isValidMove, isAdjacent, getMovementDirection } from './logic/explore-l
 import { heroService } from '../db/hero-service'
 import { inventoryService } from '../db/inventory-service'
 import { dropTableService } from '../db/drop-table-service'
-import { supabase } from '../db/supabase'
 import type { Position, SceneData, ActorState, EncounterEvent, LootResult } from 'shared-types'
 import { weaponDamageBonus, ENEMY_SLASH } from './combat-constants'
 
@@ -514,12 +513,7 @@ export class BiomeRoom extends BaseRoom<ExploreState> {
       const recoveryEndsAt = new Date(Date.now() + RECOVERY_HOURS * 60 * 60 * 1000).toISOString()
       const ghostHeroes = Object.values(cs.actors).filter(a => !a.isNPC && a.isGhost)
       await Promise.all(
-        ghostHeroes.map(hero =>
-          supabase
-            .from('heroes')
-            .update({ recovery_ends_at: recoveryEndsAt })
-            .eq('id', hero.id)
-        )
+        ghostHeroes.map(hero => heroService.updateRecoveryEndsAt(hero.id, recoveryEndsAt))
       )
       this.broadcast('COMBAT_END', { result: 'lose', recoveryEndsAt })
     }
