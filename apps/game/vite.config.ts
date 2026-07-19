@@ -14,6 +14,7 @@ function requireEnv(vars: string[]): Plugin {
 
 export default defineConfig({
   plugins: [requireEnv(['VITE_API_URL', 'VITE_SERVER_URL', 'VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY']), solid()],
+  server: { host: true, allowedHosts: true },
   optimizeDeps: {
     include: ['@babylonjs/core'],
     exclude: ['simple-quest', 'playsets-board'],

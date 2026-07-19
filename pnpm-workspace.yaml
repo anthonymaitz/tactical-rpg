@@ -4,3 +4,6 @@ packages:
   - 'server'
   - '../simplequest'
   - '../playsets experiments/apps/client'
+allowBuilds:
+  esbuild: true
+  msgpackr-extract: true
