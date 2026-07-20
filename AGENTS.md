@@ -2,6 +2,7 @@
 
 Shared homelab dev conventions first, then project-specific detail.
 
+<!-- baseline:start -->
 ## Homelab dev environment
 
 This repo runs on the homelab dev server, not a laptop.
@@ -18,6 +19,7 @@ This repo runs on the homelab dev server, not a laptop.
 - **Secrets:** never read, print, or echo `.env` / key / token *values* — diagnose from
   variable names and metadata only. `.env` is gitignored; never stage it.
 - **Remote:** GitHub-only (`origin`); PRs via `gh`.
+<!-- baseline:end -->
 
 ---
 
