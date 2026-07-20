@@ -10,5 +10,6 @@
     "typescript": "^5.4.0",
     "vitest": "^1.6.0"
   },
-  "pnpm": {}
+  "pnpm": {},
+  "packageManager": "pnpm@11.15.0"
 }
