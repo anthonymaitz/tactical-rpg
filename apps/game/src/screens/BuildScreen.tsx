@@ -2,7 +2,7 @@ import { createSignal, onMount, onCleanup } from 'solid-js'
 import { useParams, useNavigate } from '@solidjs/router'
 import { auth } from '../lib/auth'
 import { fetchScene, upsertScene } from '../services/scene-service'
-import 'playsets-board'
+import 'playsets'
 import type { SceneData } from 'shared-types'
 import { generateSceneFromInn, THE_INN } from 'shared-types'
 

@@ -1,5 +1,5 @@
 import { sql } from './pg'
-import type { SimpleQuestContent } from 'simple-quest'
+import type { SimpleQuestContent } from 'simplequest-hud'
 
 export type SqClass = {
   id: string
