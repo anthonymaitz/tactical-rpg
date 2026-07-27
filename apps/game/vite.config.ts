@@ -17,6 +17,6 @@ export default defineConfig({
   server: { host: true, allowedHosts: true },
   optimizeDeps: {
     include: ['@babylonjs/core'],
-    exclude: ['simple-quest', 'playsets-board'],
+    exclude: ['simplequest-hud', 'playsets'],
   },
 })

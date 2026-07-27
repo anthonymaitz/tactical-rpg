@@ -16,6 +16,7 @@ export function createHttpApp(): Hono {
       if (origin.startsWith('http://localhost:')) return origin
       if (origin === 'https://anthony.maitz.work') return origin
       if (origin === 'https://tactical.maitz.casa') return origin
+      if (/^https:\/\/[a-z0-9-]+\.wt\.maitz\.casa$/.test(origin)) return origin
       return null
     }
   }))

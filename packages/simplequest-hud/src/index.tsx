@@ -1,4 +1,4 @@
-import 'simple-quest'
+import 'simplequest-hud'
 import { onMount, onCleanup } from 'solid-js'
 
 declare module 'solid-js' {
@@ -9,7 +9,6 @@ declare module 'solid-js' {
   }
 }
 
-export { sampleContent } from 'simple-quest'
 export type { SimpleQuestContent, CharacterData } from 'simple-quest'
 
 export type CharacterChangeData = {

@@ -1,5 +1,5 @@
 import { createMemo, onMount, onCleanup, createEffect, on } from 'solid-js'
-import 'playsets-board'
+import 'playsets'
 import { SceneManager } from './SceneManager'
 import { ActorRenderer } from './ActorRenderer'
 import { getGridTiles } from './GridRenderer'

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render } from '@solidjs/testing-library'
 import '@testing-library/jest-dom'
 
-vi.mock('playsets-board', () => ({}))
+vi.mock('playsets', () => ({}))
 
 vi.mock('@babylonjs/core', () => ({
   Engine: vi.fn().mockImplementation(() => ({
