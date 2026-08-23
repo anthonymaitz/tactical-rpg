@@ -37,8 +37,8 @@ A tactical RPG. Three external web component modules (Playsets, SimpleQuest, Cli
 
 | Repo | Purpose |
 |------|---------|
-| `/Users/anthonymaitz/Repositories/playsets experiments/` | Playsets — isometric board, tokens, builder (`playsets-board` package) |
-| `/Users/anthonymaitz/Repositories/simplequest/` | SimpleQuest — RPG HUD web component |
+| `~/projects/playsets/apps/client` | Playsets — isometric board, tokens, builder (`playsets-board` package) |
+| `~/projects/simplequest/` | SimpleQuest — RPG HUD web component |
 
 ## Packages
 
