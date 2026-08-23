@@ -26,6 +26,7 @@ The requested worktree did **not** reproduce the main checkout baseline.
 | Local `./node_modules/.bin/vitest run` | Exit 1 before collection: missing `vite-plugin-solid` while loading `packages/playsets/vitest.config.ts` |
 | Tests collected | 0 of 160; therefore neither 157 passing nor the expected 3 failures were reproduced |
 | Assigned preview | HTTP 403 from `https://rpg-review-codex.wt.maitz.casa/` |
+| GitHub PR CI | Failed before install: workflow requests pnpm 9 while `package.json` requests pnpm 11.15.0 |
 
 The initial worktree already contained an untracked npm-generated `package-lock.json` and root-only `node_modules` tree timestamped before this review began. None of the commands above changed that lockfile, and it is not part of this review.
 
@@ -35,11 +36,11 @@ The supplied main-checkout reference remains: typecheck exit 0; 23 files / 160 t
 
 ### 1. Critical delivery blocker — the required worktree workflow cannot install or verify the repository
 
-`AGENTS.md:19-24` mandates `wt` worktrees for non-trivial work, while `pnpm-workspace.yaml:5-6` links `../simplequest` and `../playsets experiments/apps/client`. From `~/.wt/trees/rpg-review-codex`, both resolve to nonexistent paths. The documented commands are `pnpm install`, `pnpm test`, and `pnpm typecheck` (`AGENTS.md:55-63`), but this worktree also lacks the pinned `pnpm` executable and runs Node 22 rather than Node 20.
+`AGENTS.md:19-24` mandates `wt` worktrees for non-trivial work, while `pnpm-workspace.yaml:5-6` links `../simplequest` and `../playsets experiments/apps/client`. From `~/.wt/trees/rpg-review-codex`, both resolve to nonexistent paths. The documented commands are `pnpm install`, `pnpm test`, and `pnpm typecheck` (`AGENTS.md:55-63`), but this worktree also lacks the pinned `pnpm` executable and runs Node 22 rather than Node 20. The independent GitHub path is broken too: `.github/workflows/ci.yml:14-16` explicitly requests pnpm 9 while `package.json:14` pins pnpm 11.15.0, so `pnpm/action-setup@v4` rejects the conflicting versions before install.
 
-**Failure scenario:** create a task using the repository's required `wt` workflow and run the documented setup. Dependency resolution cannot reach either sibling, and in this task the command cannot even start because `pnpm` is absent. Typecheck and all 160 tests become unavailable, so an agent can neither prove the 157 passing tests remain green nor distinguish new regressions from an incomplete install.
+**Failure scenario:** create a task using the repository's required `wt` workflow and run the documented setup. Dependency resolution cannot reach either sibling, and in this task the command cannot even start because `pnpm` is absent. Open a PR as an independent check and CI also exits before install on the pnpm-version conflict. Typecheck and all 160 tests become unavailable in both paths, so neither an agent nor branch protection can prove the 157 passing tests remain green or distinguish new regressions from setup failure.
 
-**Runtime status:** verified in this worktree. The preview's HTTP 403 is additional evidence that the promised task environment was not usable.
+**Runtime status:** verified in this worktree and GitHub Actions run `32669916867`. The preview's HTTP 403 is additional evidence that the promised task environment was not usable.
 
 ### 2. Critical — clients can invent abilities, targets, costs, and the actor moved in combat
 
