@@ -1,4 +1,4 @@
-import 'simplequest-hud'
+import 'simple-quest'
 import { onMount, onCleanup } from 'solid-js'
 
 declare module 'solid-js' {

@@ -5,7 +5,9 @@
   "exports": {
     ".": "./src/index.tsx"
   },
-  "dependencies": {},
+  "dependencies": {
+    "simple-quest": "link:/home/anthony/projects/simplequest"
+  },
   "peerDependencies": {
     "solid-js": ">=1.0.0"
   },

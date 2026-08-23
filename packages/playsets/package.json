@@ -13,7 +13,8 @@
     "@babylonjs/core": ">=7.0.0"
   },
   "dependencies": {
-    "shared-types": "workspace:*"
+    "shared-types": "workspace:*",
+    "playsets-board": "link:/home/anthony/projects/playsets/apps/client"
   },
   "devDependencies": {
     "solid-js": "^1.9.0",

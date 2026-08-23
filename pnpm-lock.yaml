@@ -72,6 +72,9 @@ importers:
 
   packages/playsets:
     dependencies:
+      playsets-board:
+        specifier: link:/home/anthony/projects/playsets/apps/client
+        version: link:../../../../../projects/playsets/apps/client
       shared-types:
         specifier: workspace:*
         version: link:../shared-types
@@ -107,6 +110,10 @@ importers:
   packages/shared-types: {}
 
   packages/simplequest-hud:
+    dependencies:
+      simple-quest:
+        specifier: link:/home/anthony/projects/simplequest
+        version: link:../../../../../projects/simplequest
     devDependencies:
       solid-js:
         specifier: ^1.9.0
